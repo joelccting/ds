@@ -250,19 +250,100 @@ void dfs(playerState *player, Map *map, Log *log)
             }
             else //(next.pos < map->nCells)
             {
-                bool bLadder = false, bSnake = false;
+                bool bLadder = (next.pos < map->nCells) && (map->sc[next.pos].type == 'L');
+                bool bSnake = (next.pos < map->nCells) && (map->sc[next.pos].type == 'S');
+                int flag = 0;
+                while (next.pos < map->nCells && (bLadder || bSnake))
+                {
+                    if (bLadder)
+                    {
+                        int len = strlen(log->item[next.moves].effect);
+                        if (len)
+                        {
+                            snprintf(log->item[next.moves].effect + len, LEN - len, ";Ladder %d->%d",
+                                     next.pos, map->sc[next.pos].val);
+                        }
+                        else
+                        {
+                            snprintf(log->item[next.moves].effect, LEN, "Ladder %d->%d",
+                                     next.pos, map->sc[next.pos].val);
+                        }
+
+                        next.pos = map->sc[next.pos].val;
+                    }
+                    else if (bSnake)
+                    {
+                        log->item[next.moves].shield = next.shield;
+                        int len = strlen(log->item[next.moves].effect);
+                        if (next.shield == 1)
+                        {
+                            next.shield = 0;
+                            if (len)
+                            {
+                                snprintf(log->item[next.moves].effect + len, LEN - len,
+                                         ";Snake blocked");
+                            }
+                            else
+                            {
+                                snprintf(log->item[next.moves].effect, LEN, "Snake blocked");
+                            }
+
+                            log->item[next.moves].final = next.pos;
+                            log->item[next.moves].shield = 0;
+                            break;
+                        }
+                        else //(next.shield != 1)
+                        {
+                            if (len)
+                            {
+                                snprintf(log->item[next.moves].effect + len, LEN - len, ";Snake %d->%d",
+                                         next.pos, map->sc[next.pos].val);
+                            }
+                            else
+                            {
+                                snprintf(log->item[next.moves].effect, LEN, "Snake %d->%d",
+                                         next.pos, map->sc[next.pos].val);
+                            }
+
+                            next.pos = map->sc[next.pos].val;
+                        }
+                    }
+
+                    log->item[next.moves].final = next.pos;
+
+                    if (next.pos >= map->nCells) // success
+                    {
+                        log->item[next.moves].final = map->nCells;
+                        int len = strlen(log->item[next.moves].effect);
+                        if (len)
+                            snprintf(log->item[next.moves].effect + len, LEN - len, ";Reach goal");
+                        else
+                            snprintf(log->item[next.moves].effect, LEN, "Reach goal");
+                        dfs(&next, map, log);
+                        flag = 1;
+                        break;
+                    }
+
+                    // reset
+                    bLadder = (map->sc[next.pos].type == 'L');
+                    bSnake = (map->sc[next.pos].type == 'S');
+                } // while(next.pos < map->nCells && (bLadder || (bSnake && !bShield)))
+
+                if (flag)
+                    continue;
 
                 int len = strlen(log->item[next.moves].effect);
                 switch (map->sc[next.pos].type)
                 {
                 case 'L': // Ladder
-                    bLadder = true;
+                    // bLadder = true;
                     break;
                 case 'S': // Snake
-                    bSnake = true;
+                    // bSnake = true;
                     break;
                 case 'H': // Shield
                     next.shield = 1;
+                    log->item[next.moves].shield = next.shield;
                     if (len)
                     {
                         snprintf(log->item[next.moves].effect + len, LEN - len,
@@ -338,86 +419,6 @@ void dfs(playerState *player, Map *map, Log *log)
                 log->item[next.moves].score = next.score;
                 log->item[next.moves].bonus = next.bonus;
                 log->item[next.moves].penalty = next.penalty;
-                log->item[next.moves].shield = next.shield;
-
-                int flag = 0;
-                while (next.pos < map->nCells && (bLadder || bSnake))
-                {
-                    if (bLadder)
-                    {
-                        int len = strlen(log->item[next.moves].effect);
-                        if (len)
-                        {
-                            snprintf(log->item[next.moves].effect + len, LEN - len, ";Ladder %d->%d",
-                                     next.pos, map->sc[next.pos].val);
-                        }
-                        else
-                        {
-                            snprintf(log->item[next.moves].effect, LEN, "Ladder %d->%d",
-                                     next.pos, map->sc[next.pos].val);
-                        }
-
-                        next.pos = map->sc[next.pos].val;
-                    }
-                    else if (bSnake)
-                    {
-                        int len = strlen(log->item[next.moves].effect);
-                        if (next.shield == 1)
-                        {
-                            next.shield = 0;
-                            if (len)
-                            {
-                                snprintf(log->item[next.moves].effect + len, LEN - len,
-                                         ";Snake blocked");
-                            }
-                            else
-                            {
-                                snprintf(log->item[next.moves].effect, LEN, "Snake blocked");
-                            }
-
-                            log->item[next.moves].final = next.pos;
-                            log->item[next.moves].shield = 0;
-                            break;
-                        }
-                        else
-                        {
-                            if (len)
-                            {
-                                snprintf(log->item[next.moves].effect + len, LEN - len, ";Snake %d->%d",
-                                         next.pos, map->sc[next.pos].val);
-                            }
-                            else
-                            {
-                                snprintf(log->item[next.moves].effect, LEN, "Snake %d->%d",
-                                         next.pos, map->sc[next.pos].val);
-                            }
-
-                            next.pos = map->sc[next.pos].val;
-                        }
-                    }
-
-                    log->item[next.moves].final = next.pos;
-
-                    if (next.pos >= map->nCells) // success
-                    {
-                        log->item[next.moves].final = map->nCells;
-                        int len = strlen(log->item[next.moves].effect);
-                        if (len)
-                            snprintf(log->item[next.moves].effect + len, LEN - len, ";Reach goal");
-                        else
-                            snprintf(log->item[next.moves].effect, LEN, "Reach goal");
-                        dfs(&next, map, log);
-                        flag = 1;
-                        break;
-                    }
-
-                    // reset
-                    bLadder = (map->sc[next.pos].type == 'L');
-                    bSnake = (map->sc[next.pos].type == 'S');
-                } // while(next.pos < map->nCells && (bLadder || (bSnake && !bShield)))
-
-                if (flag)
-                    continue;
             }
         }
         else // (effectiveRoll <= 0)
