@@ -12,6 +12,8 @@ typedef struct
     int *prefixMax;
     int *suffixMax;
     int waterTotal;
+    int *secStart;
+    int *secEnd;
 } Object;
 
 #define FREE(x)      \
@@ -31,6 +33,8 @@ void deleteObject(Object *obj)
     FREE(obj->holes);
     FREE(obj->prefixMax);
     FREE(obj->suffixMax);
+    FREE(obj->secStart);
+    FREE(obj->secEnd);
     FREE(obj);
 }
 
@@ -57,6 +61,14 @@ Object *initObject(int n)
     p->suffixMax = (int *)malloc((n + 5) * sizeof(int));
     assert(p->suffixMax);
     memset(p->suffixMax, 0, (n + 5) * sizeof(int));
+
+    p->secStart = (int *)malloc((n + 5) * sizeof(int));
+    assert(p->secStart);
+    memset(p->secStart, 0, (n + 5) * sizeof(int));
+
+    p->secEnd = (int *)malloc((n + 5) * sizeof(int));
+    assert(p->secEnd);
+    memset(p->secEnd, 0, (n + 5) * sizeof(int));
     return p;
 }
 
@@ -136,6 +148,11 @@ void setPreSufMax(Object *obj)
 
         int begin = obj->holes[i] + 1,
             end = obj->holes[i + 1] - 1;
+        for (int j = begin; j <= end; ++j)
+        {
+            obj->secStart[j] = begin;
+            obj->secEnd[j] = end;
+        }
         // printf("[%d] end=%d\n", __LINE__, end);
         setPreSufMax2(obj, begin, end);
     }
@@ -145,19 +162,21 @@ void getSection(Object *obj, int idx, int *start, int *end)
 {
     assert(start);
     assert(end);
-    for (int i = 1; i <= obj->nHoles; ++i)
-    {
-        if (obj->holes[i] < idx)
-        {
-            continue;
-        }
-        else
-        {
-            *start = obj->holes[i - 1] + 1;
-            *end = obj->holes[i] - 1;
-            break;
-        }
-    }
+    // for (int i = 1; i <= obj->nHoles; ++i)
+    // {
+    //     if (obj->holes[i] < idx)
+    //     {
+    //         continue;
+    //     }
+    //     else
+    //     {
+    //         *start = obj->holes[i - 1] + 1;
+    //         *end = obj->holes[i] - 1;
+    //         break;
+    //     }
+    // }
+    *start = obj->secStart[idx];
+    *end = obj->secEnd[idx];
 }
 
 // void setPreSufMax(Object *obj)
@@ -278,6 +297,7 @@ int main()
         for (int j = 1; j <= nDams; ++j)
         {
             scanf("%d", obj->damHeight + j);
+
             if (obj->damHeight[j] == -1)
             {
                 obj->holes[obj->nHoles++] = j;
