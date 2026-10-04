@@ -250,9 +250,95 @@ void dfs(playerState *player, Map *map, Log *log)
             }
             else //(next.pos < map->nCells)
             {
-                bool bLadder = (map->sc[next.pos].type == 'L');
-                bool bSnake = (map->sc[next.pos].type == 'S');
-                bool bShield = (next.shield == 1);
+                bool bLadder = false, bSnake = false;
+
+                int len = strlen(log->item[next.moves].effect);
+                switch (map->sc[next.pos].type)
+                {
+                case 'L': // Ladder
+                    bLadder = true;
+                    break;
+                case 'S': // Snake
+                    bSnake = true;
+                    break;
+                case 'H': // Shield
+                    next.shield = 1;
+                    if (len)
+                    {
+                        snprintf(log->item[next.moves].effect + len, LEN - len,
+                                 ";Shield");
+                    }
+                    else
+                    {
+                        snprintf(log->item[next.moves].effect, LEN,
+                                 "Shield");
+                    }
+                    break;
+                case 'P': // Penalty
+                    next.penalty = map->sc[next.pos].val;
+                    if (len)
+                    {
+                        snprintf(log->item[next.moves].effect + len, LEN - len,
+                                 ";Penalty -%d", next.penalty);
+                    }
+                    else
+                    {
+                        snprintf(log->item[next.moves].effect, LEN,
+                                 "Penalty -%d", next.penalty);
+                    }
+                    break;
+                case 'B': // Bonus
+                    next.bonus = map->sc[next.pos].val;
+                    if (len)
+                    {
+                        snprintf(log->item[next.moves].effect + len, LEN - len,
+                                 ";Bonus +%d", next.bonus);
+                    }
+                    else
+                    {
+                        snprintf(log->item[next.moves].effect, LEN,
+                                 "Bonus +%d", next.bonus);
+                    }
+                    break;
+
+                case 'T': // Treasure
+                    if (next.treasureMask & (1ULL << next.pos))
+                    {
+                        next.score += map->sc[next.pos].val;
+                        next.treasureMask &= ~(1ULL << next.pos);
+                        if (len)
+                        {
+                            snprintf(log->item[next.moves].effect + len, LEN - len,
+                                     ";Treasure +%d", map->sc[next.pos].val);
+                        }
+                        else
+                        {
+                            snprintf(log->item[next.moves].effect, LEN,
+                                     "Treasure +%d", map->sc[next.pos].val);
+                        }
+                    }
+
+                    break;
+
+                default:
+                    // if (len)
+                    // {
+                    //     snprintf(log->item[next.moves].effect + len, LEN - len,
+                    //              "%s;None", log->item[next.moves].effect);
+                    // }
+                    // else
+                    // {
+                    if (!len)
+                        snprintf(log->item[next.moves].effect, LEN, "None");
+                    // }
+
+                    break;
+                }
+
+                log->item[next.moves].score = next.score;
+                log->item[next.moves].bonus = next.bonus;
+                log->item[next.moves].penalty = next.penalty;
+                log->item[next.moves].shield = next.shield;
 
                 int flag = 0;
                 while (next.pos < map->nCells && (bLadder || bSnake))
@@ -276,7 +362,7 @@ void dfs(playerState *player, Map *map, Log *log)
                     else if (bSnake)
                     {
                         int len = strlen(log->item[next.moves].effect);
-                        if (bShield)
+                        if (next.shield == 1)
                         {
                             next.shield = 0;
                             if (len)
@@ -310,10 +396,6 @@ void dfs(playerState *player, Map *map, Log *log)
                         }
                     }
 
-                    log->item[next.moves].score = next.score;
-                    log->item[next.moves].bonus = next.bonus;
-                    log->item[next.moves].penalty = next.penalty;
-                    log->item[next.moves].shield = next.shield;
                     log->item[next.moves].final = next.pos;
 
                     if (next.pos >= map->nCells) // success
@@ -332,7 +414,6 @@ void dfs(playerState *player, Map *map, Log *log)
                     // reset
                     bLadder = (map->sc[next.pos].type == 'L');
                     bSnake = (map->sc[next.pos].type == 'S');
-                    bShield = (next.shield == 1);
                 } // while(next.pos < map->nCells && (bLadder || (bSnake && !bShield)))
 
                 if (flag)
@@ -349,91 +430,6 @@ void dfs(playerState *player, Map *map, Log *log)
             continue;
         }
 
-        int len = strlen(log->item[next.moves].effect);
-        switch (map->sc[next.pos].type)
-        {
-        case 'L': // Ladder
-            break;
-        case 'S': // Snake
-            break;
-        case 'H': // Shield
-            next.shield = 1;
-            if (len)
-            {
-                snprintf(log->item[next.moves].effect + len, LEN - len,
-                         ";Shield");
-            }
-            else
-            {
-                snprintf(log->item[next.moves].effect, LEN,
-                         "Shield");
-            }
-            break;
-        case 'P': // Penalty
-            next.penalty = map->sc[next.pos].val;
-            if (len)
-            {
-                snprintf(log->item[next.moves].effect + len, LEN - len,
-                         ";Penalty -%d", next.penalty);
-            }
-            else
-            {
-                snprintf(log->item[next.moves].effect, LEN,
-                         "Penalty -%d", next.penalty);
-            }
-            break;
-        case 'B': // Bonus
-            next.bonus = map->sc[next.pos].val;
-            if (len)
-            {
-                snprintf(log->item[next.moves].effect + len, LEN - len,
-                         ";Bonus +%d", next.bonus);
-            }
-            else
-            {
-                snprintf(log->item[next.moves].effect, LEN,
-                         "Bonus +%d", next.bonus);
-            }
-            break;
-
-        case 'T': // Treasure
-            if (next.treasureMask & (1ULL << next.pos))
-            {
-                next.score += map->sc[next.pos].val;
-                next.treasureMask &= ~(1ULL << next.pos);
-                if (len)
-                {
-                    snprintf(log->item[next.moves].effect + len, LEN - len,
-                             ";Treasure +%d", map->sc[next.pos].val);
-                }
-                else
-                {
-                    snprintf(log->item[next.moves].effect, LEN,
-                             "Treasure +%d", map->sc[next.pos].val);
-                }
-            }
-
-            break;
-
-        default:
-            // if (len)
-            // {
-            //     snprintf(log->item[next.moves].effect + len, LEN - len,
-            //              "%s;None", log->item[next.moves].effect);
-            // }
-            // else
-            // {
-            if (!len)
-                snprintf(log->item[next.moves].effect, LEN, "None");
-            // }
-
-            break;
-        }
-
-        log->item[next.moves].score = next.score;
-        log->item[next.moves].bonus = next.bonus;
-        log->item[next.moves].penalty = next.penalty;
-        log->item[next.moves].shield = next.shield;
         dfs(&next, map, log);
     }
 }
