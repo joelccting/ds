@@ -14,6 +14,9 @@ typedef struct
     int waterTotal;
     int *secStart;
     int *secEnd;
+    int *oSecWater;
+    int *prefixMaxcopy;
+    int *suffixMaxcopy;
 } Object;
 
 #define FREE(x)      \
@@ -35,6 +38,9 @@ void deleteObject(Object *obj)
     FREE(obj->suffixMax);
     FREE(obj->secStart);
     FREE(obj->secEnd);
+    FREE(obj->oSecWater);
+    FREE(obj->prefixMaxcopy);
+    FREE(obj->suffixMaxcopy);
     FREE(obj);
 }
 
@@ -69,15 +75,31 @@ Object *initObject(int n)
     p->secEnd = (int *)malloc((n + 5) * sizeof(int));
     assert(p->secEnd);
     memset(p->secEnd, 0, (n + 5) * sizeof(int));
+
+    p->oSecWater = (int *)malloc((n + 5) * sizeof(int));
+    assert(p->oSecWater);
+    memset(p->oSecWater, 0, (n + 5) * sizeof(int));
+
+    p->prefixMaxcopy = (int *)malloc((n + 5) * sizeof(int));
+    assert(p->prefixMaxcopy);
+    memset(p->prefixMaxcopy, 0, (n + 5) * sizeof(int));
+
+    p->suffixMaxcopy = (int *)malloc((n + 5) * sizeof(int));
+    assert(p->suffixMaxcopy);
+    memset(p->suffixMaxcopy, 0, (n + 5) * sizeof(int));
+
     return p;
 }
 
-int getSectionWater(Object *obj, int start, int end)
+int getSectionWater(Object *obj, int flag, int start, int end)
 {
     int retval = 0;
     for (int i = start; i <= end; ++i)
     {
-        retval += MAX(0, MIN(obj->prefixMax[i], obj->suffixMax[i]) - obj->damHeight[i]);
+        if (flag)
+            retval += MAX(0, MIN(obj->prefixMax[i], obj->suffixMax[i]) - obj->damHeight[i]);
+        else
+            retval += MAX(0, MIN(obj->prefixMaxcopy[i], obj->suffixMaxcopy[i]) - obj->damHeight[i]);
     }
     return retval;
 }
@@ -103,7 +125,7 @@ int getWaterTotal(Object *obj)
     return obj->waterTotal;
 }
 
-void setPreSufMax2(Object *obj, int begin, int end)
+void setPreSufMax2(Object *obj, int flag, int begin, int end)
 {
     assert(obj);
     if (begin > end)
@@ -120,16 +142,30 @@ void setPreSufMax2(Object *obj, int begin, int end)
     // int begin = obj->holes[i - 1] + 1,
     //     end = obj->holes[i] - 1;
 
-    obj->prefixMax[begin] = obj->damHeight[begin];
+    if (flag)
+        obj->prefixMax[begin] = obj->damHeight[begin];
+    else
+        obj->prefixMaxcopy[begin] = obj->damHeight[begin];
+
     for (int i = begin + 1; i <= end; ++i)
     {
-        obj->prefixMax[i] = MAX(obj->damHeight[i], obj->prefixMax[i - 1]);
+        if (flag)
+            obj->prefixMax[i] = MAX(obj->damHeight[i], obj->prefixMax[i - 1]);
+        else
+            obj->prefixMaxcopy[i] = MAX(obj->damHeight[i], obj->prefixMaxcopy[i - 1]);
     }
 
-    obj->suffixMax[end] = obj->damHeight[end];
+    if (flag)
+        obj->suffixMax[end] = obj->damHeight[end];
+    else
+        obj->suffixMaxcopy[end] = obj->damHeight[end];
+
     for (int i = end - 1; i >= begin; --i)
     {
-        obj->suffixMax[i] = MAX(obj->damHeight[i], obj->suffixMax[i + 1]);
+        if (flag)
+            obj->suffixMax[i] = MAX(obj->damHeight[i], obj->suffixMax[i + 1]);
+        else
+            obj->suffixMaxcopy[i] = MAX(obj->damHeight[i], obj->suffixMaxcopy[i + 1]);
     }
     // }
 }
@@ -148,13 +184,14 @@ void setPreSufMax(Object *obj)
 
         int begin = obj->holes[i] + 1,
             end = obj->holes[i + 1] - 1;
+        setPreSufMax2(obj, 1, begin, end);
         for (int j = begin; j <= end; ++j)
         {
             obj->secStart[j] = begin;
             obj->secEnd[j] = end;
+            obj->oSecWater[j] = getSectionWater(obj, 1, begin, end);
         }
         // printf("[%d] end=%d\n", __LINE__, end);
-        setPreSufMax2(obj, begin, end);
     }
 }
 
@@ -232,13 +269,16 @@ void removeDam(Object *obj, int *pos, int *maxWater)
         {
             int begin, end;
             getSection(obj, i, &begin, &end);
-            int oSecWater = getSectionWater(obj, begin, end);
+            // int oSecWater = getSectionWater(obj, begin, end);
+            int oSecWater = obj->oSecWater[i];
+
             int h = obj->damHeight[i];
             obj->damHeight[i] = 0;
-            setPreSufMax2(obj, begin, end);
-            int nSecWater = getSectionWater(obj, begin, end);
+            setPreSufMax2(obj, 0, begin, end);
+            int nSecWater = getSectionWater(obj, 0, begin, end);
             obj->damHeight[i] = h;
-            setPreSufMax2(obj, begin, end);
+            // setPreSufMax2(obj, begin, end);
+
             delta = nSecWater - oSecWater;
         }
 
