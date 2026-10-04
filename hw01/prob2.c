@@ -18,7 +18,7 @@ typedef struct
     int nSpecialCells;   // C
     int minScore;        // G
     specCell *sc;
-    unsigned long long treasureMask;
+
 } Map;
 
 Map *initMap(int N, int K, int R, int C, int G)
@@ -79,11 +79,15 @@ typedef struct
     int shield;
     int bonus;
     int penalty;
+    unsigned long long treasureMask;
 } playerState;
 
 void printLog(playerState *player, Log *log)
 {
-    printf("Route %d:\n", log->totSucRoutes);
+    static int sn = 1;
+    if (sn > 1)
+        printf("\n");
+    printf("Route %d:\n", sn++);
     printf("Dice: ");
     for (int i = 1; i <= player->moves; ++i)
     {
@@ -92,7 +96,8 @@ void printLog(playerState *player, Log *log)
 
     for (int i = 1; i <= player->moves; ++i)
     {
-        printf("Turn %d: ", log->item[i].roll);
+        printf("Turn %d: ", i);
+        printf("roll=%d, ", log->item[i].roll);
         printf("from=%d, move_to=%d, ", log->item[i].from, log->item[i].moveTo);
         printf("effect=%s, ", log->item[i].effect); // TODO
         printf("final=%d, ", log->item[i].final);
@@ -107,23 +112,34 @@ void printLog(playerState *player, Log *log)
 
 void printSummary(Log *log)
 {
-    printf("\nSummary:\n");
-    printf("Total successful routes: %d\n", log->totSucRoutes);
-    printf("Shortest route: Route %d, turns=%d\n", log->shRoute, log->shRouteTurns);
-    printf("Highest score: Route %d, score=%d", log->hiScoreRoute, log->hiScore);
+    if (log->totSucRoutes)
+    {
+        printf("\nSummary:\n");
+        printf("Total successful routes: %d\n", log->totSucRoutes);
+        printf("Shortest route: Route %d, turns=%d\n", log->shRoute, log->shRouteTurns);
+        printf("Highest score: Route %d, score=%d", log->hiScoreRoute, log->hiScore);
+    }
+    else
+    {
+        printf("No successful route");
+    }
 }
 
-Log *initLog(int nCells, int stepsPerMove)
+Log *initLog(int nCells)
 {
     Log *p = NULL;
     p = (Log *)malloc(sizeof(Log));
     assert(p);
+    memset(p, 0, sizeof(Log));
+
     p->item = (turnLog *)malloc((nCells + 1) * sizeof(turnLog));
     assert(p->item);
     memset(p->item, 0, (nCells + 1) * sizeof(turnLog));
-    p->dice = (int *)malloc((stepsPerMove + 1) * sizeof(int));
+
+    p->dice = (int *)malloc((nCells + 1) * sizeof(int));
     assert(p->dice);
-    memset(p->dice, 0, (stepsPerMove + 1) * sizeof(int));
+    memset(p->dice, 0, (nCells + 1) * sizeof(int));
+
     p->hiScore = -1;
     p->hiScoreRoute = -1;
     p->shRoute = 1000;
@@ -161,9 +177,9 @@ void dfs(playerState *player, Map *map, Log *log)
 {
     if (player->pos >= map->nCells)
     {
+        // success
         if (player->score >= map->minScore && player->moves <= map->maxMoves)
         {
-            // success
             log->totSucRoutes++;
             if (player->score > log->hiScore)
             {
@@ -180,46 +196,50 @@ void dfs(playerState *player, Map *map, Log *log)
             return;
         }
 
-        if (player->score <= map->minScore)
+        // failure
+        if (player->score < map->minScore)
         {
-            // failure.
             return;
         }
     }
     else // next.pos < map->nCells
     {
+        // failure
         if (player->moves >= map->maxMoves)
         {
-            // failure
             return;
         }
     }
 
+    // roll the dice
     for (int roll = 1; roll <= map->maxStepsPerMove; ++roll)
     {
-        playerState next = *player;
+        playerState next = *player; // get a copy so that recursion can recover the previous state
 
-        int effectiveRoll = roll + next.bonus - next.penalty;
         ++next.moves;
         log->item[next.moves].effect[0] = '\0';
+        log->dice[next.moves] = roll;
+        log->item[next.moves].roll = roll;
+        log->item[next.moves].score = next.score;
+        log->item[next.moves].bonus = next.bonus;
+        log->item[next.moves].penalty = next.penalty;
+        log->item[next.moves].shield = next.shield;
+
+        int effectiveRoll = roll + next.bonus - next.penalty;
         next.bonus = 0;
         next.penalty = 0;
         if (effectiveRoll > 0)
         {
             next.pos += effectiveRoll;
-            log->dice[next.moves] = roll;
-            log->item[next.moves].roll = roll;
+
             log->item[next.moves].from = next.pos - effectiveRoll;
             log->item[next.moves].moveTo = next.pos;
             log->item[next.moves].final = next.pos;
-            log->item[next.moves].score = next.score;
-            log->item[next.moves].bonus = next.bonus;
-            log->item[next.moves].penalty = next.penalty;
-            log->item[next.moves].shield = next.shield;
 
             if (next.pos >= map->nCells)
             {
                 // success
+                log->item[next.moves].final = map->nCells;
                 snprintf(log->item[next.moves].effect, LEN, "Reach goal");
                 dfs(&next, map, log);
                 continue;
@@ -229,14 +249,16 @@ void dfs(playerState *player, Map *map, Log *log)
                 bool bLadder = (map->sc[next.pos].type == 'L');
                 bool bSnake = (map->sc[next.pos].type == 'S');
                 bool bShield = (next.shield == 1);
+
                 while (next.pos < map->nCells && (bLadder || (bSnake && !bShield)))
                 {
                     if (bLadder)
                     {
-                        if (strlen(log->item[next.moves].effect))
+                        int len = strlen(log->item[next.moves].effect);
+                        if (len)
                         {
-                            snprintf(log->item[next.moves].effect, LEN, "%s;Ladder %d->%d",
-                                     log->item[next.moves].effect, next.pos, map->sc[next.pos].val);
+                            snprintf(log->item[next.moves].effect + len, LEN - len, ";Ladder %d->%d",
+                                     next.pos, map->sc[next.pos].val);
                         }
                         else
                         {
@@ -246,10 +268,11 @@ void dfs(playerState *player, Map *map, Log *log)
                     }
                     else if (bSnake && !bShield)
                     {
-                        if (strlen(log->item[next.moves].effect))
+                        int len = strlen(log->item[next.moves].effect);
+                        if (len)
                         {
-                            snprintf(log->item[next.moves].effect, LEN, "%s;Snake %d->%d",
-                                     log->item[next.moves].effect, next.pos, map->sc[next.pos].val);
+                            snprintf(log->item[next.moves].effect + len, LEN - len, ";Snake %d->%d",
+                                     next.pos, map->sc[next.pos].val);
                         }
                         else
                         {
@@ -258,17 +281,21 @@ void dfs(playerState *player, Map *map, Log *log)
                         }
                     }
 
-                    next.pos = map->sc[next.pos].val;
-                    if (next.pos >= map->nCells)
+                    log->item[next.moves].final = next.pos = map->sc[next.pos].val;
+                    if (next.pos >= map->nCells) // success
                     {
-                        break;
+                        log->item[next.moves].final = map->nCells;
+                        int len = strlen(log->item[next.moves].effect);
+                        snprintf(log->item[next.moves].effect + len, LEN - len, ";Reach goal");
+                        dfs(&next, map, log);
+                        continue;
                     }
+
+                    // reset
                     bLadder = (map->sc[next.pos].type == 'L');
                     bSnake = (map->sc[next.pos].type == 'S');
                     bShield = (next.shield == 1);
-                }
-
-                log->item[next.moves].final = next.pos;
+                } // while(next.pos < map->nCells && (bLadder || (bSnake && !bShield)))
             }
         }
         else // (effectiveRoll <= 0)
@@ -281,6 +308,7 @@ void dfs(playerState *player, Map *map, Log *log)
             continue;
         }
 
+        int len = strlen(log->item[next.moves].effect);
         switch (map->sc[next.pos].type)
         {
         case 'L': // Ladder
@@ -289,10 +317,10 @@ void dfs(playerState *player, Map *map, Log *log)
             if (next.shield == 1)
             {
                 next.shield = 0;
-                if (strlen(log->item[next.moves].effect))
+                if (len)
                 {
-                    snprintf(log->item[next.moves].effect, LEN,
-                             "%s;Snake blocked", log->item[next.moves].effect);
+                    snprintf(log->item[next.moves].effect + len, LEN - len,
+                             ";Snake blocked");
                 }
                 else
                 {
@@ -302,10 +330,10 @@ void dfs(playerState *player, Map *map, Log *log)
             break;
         case 'H': // Shield
             next.shield = 1;
-            if (strlen(log->item[next.moves].effect))
+            if (len)
             {
-                snprintf(log->item[next.moves].effect, LEN,
-                         "%s;Shield", log->item[next.moves].effect);
+                snprintf(log->item[next.moves].effect + len, LEN - len,
+                         ";Shield");
             }
             else
             {
@@ -315,10 +343,10 @@ void dfs(playerState *player, Map *map, Log *log)
             break;
         case 'P': // Penalty
             next.penalty = map->sc[next.pos].val;
-            if (strlen(log->item[next.moves].effect))
+            if (len)
             {
-                snprintf(log->item[next.moves].effect, LEN,
-                         "%s;Penalty -%d", log->item[next.moves].effect, next.penalty);
+                snprintf(log->item[next.moves].effect + len, LEN - len,
+                         ";Penalty -%d", next.penalty);
             }
             else
             {
@@ -328,10 +356,10 @@ void dfs(playerState *player, Map *map, Log *log)
             break;
         case 'B': // Bonus
             next.bonus = map->sc[next.pos].val;
-            if (strlen(log->item[next.moves].effect))
+            if (len)
             {
-                snprintf(log->item[next.moves].effect, LEN,
-                         "%s;Bonus +%d", log->item[next.moves].effect, next.bonus);
+                snprintf(log->item[next.moves].effect + len, LEN - len,
+                         ";Bonus +%d", next.bonus);
             }
             else
             {
@@ -341,15 +369,14 @@ void dfs(playerState *player, Map *map, Log *log)
             break;
 
         case 'T': // Treasure
-            unsigned long long treasureMask = map->treasureMask;
-            if (treasureMask & (1 << next.pos))
+            if (next.treasureMask & (1 << next.pos))
             {
                 next.score += map->sc[next.pos].val;
-                treasureMask &= ~(1 << next.pos);
-                if (strlen(log->item[next.moves].effect))
+                next.treasureMask &= ~(1 << next.pos);
+                if (len)
                 {
-                    snprintf(log->item[next.moves].effect, LEN,
-                             "%s;Treasure +%d", log->item[next.moves].effect, map->sc[next.pos].val);
+                    snprintf(log->item[next.moves].effect + len, LEN - len,
+                             ";Treasure +%d", map->sc[next.pos].val);
                 }
                 else
                 {
@@ -361,15 +388,16 @@ void dfs(playerState *player, Map *map, Log *log)
             break;
 
         default:
-            if (strlen(log->item[next.moves].effect))
-            {
-                snprintf(log->item[next.moves].effect, LEN,
-                         "%s;None", log->item[next.moves].effect);
-            }
-            else
-            {
+            // if (len)
+            // {
+            //     snprintf(log->item[next.moves].effect + len, LEN - len,
+            //              "%s;None", log->item[next.moves].effect);
+            // }
+            // else
+            // {
+            if (!len)
                 snprintf(log->item[next.moves].effect, LEN, "None");
-            }
+            // }
 
             break;
         }
@@ -398,7 +426,7 @@ int main()
 
     Map *map = initMap(N, K, R, C, G);
     playerState *player = initplayerState(N, K);
-    Log *log = initLog(N, K);
+    Log *log = initLog(N);
 
     // <cell_index><type><value>
     for (int i = 0; i < C; ++i)
@@ -411,7 +439,7 @@ int main()
         switch (type)
         {
         case 'T':
-            map->treasureMask |= (1 << idx);
+            player->treasureMask |= (1 << idx);
             break;
         default:
             break;
