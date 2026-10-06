@@ -1,3 +1,7 @@
+/**
+ * Problem 1 Flood-control simulation system
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,17 +9,17 @@
 
 typedef struct
 {
-    int nDams;
-    int *damHeight;
-    int nHoles;
-    int *holes;
-    int *prefixMax;
-    int *suffixMax;
-    int waterTotal;
-    int *secStart;
-    int *secEnd;
-    int *oSecWater;
-    int *prefixMaxcopy;
+    int nDams;      // number of dams
+    int *damHeight; // heights of dams
+    int nHoles;     // number of holes
+    int *holes;     // position of holes
+    int *prefixMax; // prefix-max
+    int *suffixMax; // suffix-max
+    int waterTotal; // original total water amount
+    int *secStart;  // the start position of a section which i-th dam is in
+    int *secEnd;    // the end position of a section which i-th dam is in
+    int *oSecWater; // original water amount in a section before removing any dam
+    int *prefixMaxcopy; // a copy of prefixMax, changeable any time without recalculating *prefixMax and *suffixMax
     int *suffixMaxcopy;
 } Object;
 
@@ -29,6 +33,11 @@ typedef struct
 #define MAX(x, y) (((x) >= (y)) ? (x) : (y))
 #define MIN(x, y) (((x) <= (y)) ? (x) : (y))
 
+/**
+ * @brief Free allocated space for data
+ * @param[in] obj a pointer to memory storing data for the whole program
+ * @return None
+ */
 void deleteObject(Object *obj)
 {
     assert(obj);
@@ -44,6 +53,11 @@ void deleteObject(Object *obj)
     FREE(obj);
 }
 
+/**
+ * @brief Allocating required memory space
+ * @param[in] n the number of dams
+ * @return a pointer to the memory
+ */
 Object *initObject(int n)
 {
     Object *p = NULL;
@@ -91,6 +105,14 @@ Object *initObject(int n)
     return p;
 }
 
+/**
+ * @brief Calculate the water amount stored in a section
+ * @param[in] obj pointer to data
+ * @param[in] flag 1: use original prefixMax/suffixMax to calculate; 0: use a modified copy to calculate
+ * @param[in] start start position of a section
+ * @param[in] end end position of a section
+ * @return the water amount stored in a section
+ */
 int getSectionWater(Object *obj, int flag, int start, int end)
 {
     int retval = 0;
@@ -104,6 +126,11 @@ int getSectionWater(Object *obj, int flag, int start, int end)
     return retval;
 }
 
+/**
+ * @brief Calculate total water amount and remember the value
+ * @param[in] obj pointer to data
+ * @return None
+ */
 void setWaterTotal(Object *obj)
 {
     assert(obj);
@@ -119,12 +146,25 @@ void setWaterTotal(Object *obj)
     }
 }
 
+/**
+ * @brief get total water amount
+ * @param[in] obj Pointer to data
+ * @return Total water amount
+ */
 int getWaterTotal(Object *obj)
 {
     assert(obj);
     return obj->waterTotal;
 }
 
+/**
+ * @brief set regional prefix/suffix max
+ * @param[in] obj pointer to data
+ * @param[in] flag 1: write to original prefix/suffix max memory; 0: write to copy memory instead
+ * @param[in] begin start of the section
+ * @param[in] end end of the section
+ * @return None
+ */
 void setPreSufMax2(Object *obj, int flag, int begin, int end)
 {
     assert(obj);
@@ -169,7 +209,11 @@ void setPreSufMax2(Object *obj, int flag, int begin, int end)
     }
     // }
 }
-
+/**
+ * @brief A wrapper of setPreSufMax2, handling all dams
+ * @param[in] obj Pointer to data
+ * @return None
+ */
 void setPreSufMax(Object *obj)
 {
     assert(obj);
@@ -195,6 +239,13 @@ void setPreSufMax(Object *obj)
     }
 }
 
+/**
+ * @brief Get the start and end position of i-th dam
+ * @param[in] obj Pointer to data
+ * @param[in] idx current dam position
+ * @param[out] start start position of the section
+ * @param[out] end end position of the section
+ */
 void getSection(Object *obj, int idx, int *start, int *end)
 {
     assert(start);
@@ -245,6 +296,12 @@ void getSection(Object *obj, int idx, int *start, int *end)
 //     }
 // }
 
+/**
+ * @brief Iterate/remove each dam and decide water amount reaches the max at which position
+ * @param[in] obj Pointer to data
+ * @param[out] pos Pointer to the position which water amount reaches the max when removed
+ * @param[out] maxWater The max water amount
+ */
 void removeDam(Object *obj, int *pos, int *maxWater)
 {
     assert(obj);
@@ -290,6 +347,10 @@ void removeDam(Object *obj, int *pos, int *maxWater)
     }
 }
 
+/**
+ * @brief Debug
+ * @param[in] Pointer to data
+ */
 void dbgprint(Object *obj)
 {
     assert(obj);
@@ -316,6 +377,9 @@ void dbgprint(Object *obj)
     printf("Total water: %d\n", obj->waterTotal);
 }
 
+/**
+ * @brief Entry of the program
+ */
 int main()
 {
     int nTestCases; // the number of test cases
@@ -332,6 +396,7 @@ int main()
             return EXIT_FAILURE;
         }
 
+        /* Dams range from 1 to nDams; [0], [nDams + 1] are fake dams. */
         obj->holes[0] = 0;
         obj->nHoles = 1;
         for (int j = 1; j <= nDams; ++j)
@@ -345,12 +410,18 @@ int main()
         }
         obj->holes[obj->nHoles++] = nDams + 1;
 
+        /* Calculate prefixMax and suffixMax */
         setPreSufMax(obj);
+
+        /* Calculate total water amount */
         setWaterTotal(obj);
         // dbgprint(obj);
 
+        /* Iterate and decide the answer */
         int remove, maxWater;
         removeDam(obj, &remove, &maxWater);
+
+        /* Print results */
         printf("Case %d:\n", i);
         printf("Remove: %d\n", remove);
         printf("Maximum water: %d%s", maxWater, (i != nTestCases) ? "\n\n" : "");

@@ -1,9 +1,15 @@
+/**
+ * Problem 2 Mission-board simulation system
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
+
 #define LEN (128)
+
 typedef struct
 {
     // int cellIdx;
@@ -22,6 +28,15 @@ typedef struct
 
 } Map;
 
+/**
+ * @brief Initialize data memory
+ * @param[in] N Number of cells on the board
+ * @param[in] K Maximum movement value for each move
+ * @param[in] R Maximum number of moves
+ * @param[in] C Number of special cells
+ * @param[in] G Minimum score to successfully complete the mission
+ * @return Pointer to the data memory
+ */
 Map *initMap(int N, int K, int R, int C, int G)
 {
     Map *m = NULL;
@@ -39,6 +54,11 @@ Map *initMap(int N, int K, int R, int C, int G)
     return m;
 }
 
+/**
+ * @brief Free allocated memory space
+ * @param[in] m Pointer to the object
+ * @return None
+ */
 void deleteMap(Map *m)
 {
     assert(m);
@@ -83,6 +103,12 @@ typedef struct
     unsigned long long treasureMask;
 } playerState;
 
+/**
+ * @brief Print a route log for all the turns it has
+ * @param[in] player Pointer to player state
+ * @param[in] log Pointer to log
+ * @return None
+ */
 void printLog(playerState *player, Log *log)
 {
     if (log->totSucRoutes > 1)
@@ -111,6 +137,10 @@ void printLog(playerState *player, Log *log)
     printf("Result: Win in %d turns, score=%d\n", player->moves, player->score);
 }
 
+/**
+ * @brief Print the summary
+ * @param[in] log Pointer to the log memory
+ */
 void printSummary(Log *log)
 {
     if (log->totSucRoutes)
@@ -126,6 +156,11 @@ void printSummary(Log *log)
     }
 }
 
+/**
+ * @brief Allocate memory for the log 
+ * @param[in] nCells Number of cells
+ * @return Pointer to the log
+ */
 Log *initLog(int nCells)
 {
     Log *p = NULL;
@@ -148,6 +183,11 @@ Log *initLog(int nCells)
     return p;
 }
 
+/**
+ * @brief Free the allocated memory
+ * @param obj Pointer to the log
+ * @return None
+ */
 void deleteLog(Log *obj)
 {
     assert(obj->item);
@@ -157,7 +197,12 @@ void deleteLog(Log *obj)
     free(obj);
 }
 
-playerState *initplayerState(int nCells, int maxMoves)
+/**
+ * @brief Allocate memory for a player state
+ * @param[in] nCells Number of cells
+ * @return Pointer to the memory
+ */
+playerState *initplayerState(int nCells)
 {
     playerState *obj = NULL;
     obj = (playerState *)malloc(sizeof(playerState));
@@ -168,12 +213,23 @@ playerState *initplayerState(int nCells, int maxMoves)
     return obj;
 }
 
+/**
+ * @brief Free the memory
+ * @param[in] obj Pointer to a player state
+ * @return None
+ */
 void deleteplayerState(playerState *obj)
 {
     assert(obj);
     free(obj);
 }
 
+/**
+ * @brief Implementing DFS for traversing the map
+ * @param[in] player Pointer to the player state
+ * @param[in] map Pointer to map
+ * @param[in] log Pointer to log
+ */
 void dfs(playerState *player, Map *map, Log *log)
 {
     if (player->pos >= map->nCells)
@@ -416,7 +472,7 @@ int main()
     }
 
     Map *map = initMap(N, K, R, C, G);
-    playerState *player = initplayerState(N, K);
+    playerState *player = initplayerState(N);
     Log *log = initLog(N);
 
     // <cell_index><type><value>
