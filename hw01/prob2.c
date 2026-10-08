@@ -157,7 +157,7 @@ void printSummary(Log *log)
 }
 
 /**
- * @brief Allocate memory for the log 
+ * @brief Allocate memory for the log
  * @param[in] nCells Number of cells
  * @return Pointer to the log
  */
@@ -413,6 +413,9 @@ void dfs(playerState *player, Map *map, Log *log)
 
                         break;
                     }
+
+                    if (log->item[next.moves].effect[0] == '\0')
+                        snprintf(log->item[next.moves].effect, LEN, "None");
 
                     if (exit)
                         break;
