@@ -1,0 +1,18 @@
+Time 0: ARRIVE Job 1, pages=5
+Time 0: ARRIVE Job 2, pages=2
+Time 0: ASSIGN Job 1 to Printer 2
+Time 0: ASSIGN Job 2 to Printer 1
+Time 0: START Printer 1, Job 2, remaining pages=2
+Time 0: START Printer 2, Job 1, remaining pages=5
+Time 2: ARRIVE Job 3, pages=2
+Time 2: ASSIGN Job 3 to Printer 2
+Time 4: COMPLETE Job 2 in Printer 1
+Time 4: OVERHEAT Printer 2, Restart time=5
+Time 4: REASSIGN Job 1, remaining pages=1, from Printer 2 to Printer 1
+Time 4: START Printer 1, Job 1, remaining pages=1
+Time 5: REST END Printer 2
+Time 5: START Printer 2, Job 3, remaining pages=2
+Time 6: COMPLETE Job 1 in Printer 1
+Time 6: OVERHEAT Printer 1, Restart time=8
+Time 7: COMPLETE Job 3 in Printer 2
+Finish time: 7
