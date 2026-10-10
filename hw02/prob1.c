@@ -30,8 +30,8 @@ typedef enum
 
 typedef enum
 {
-    WIN,
     ACTIVE,
+    WIN,
     DEAD,
     NOPATH,
     STATUS_MAX
@@ -66,6 +66,7 @@ typedef struct
     Pos currPos;
     Dir currDir;
     int health;
+    int wins;
     Node *stack;
     int top;
     int stkMax;
@@ -192,7 +193,11 @@ void printFiExp(fiExp *obj)
 }
 
 /**
- * @return 0 still active; -1 dead 
+ * @brief Check collision
+ * @param[in] obj Pointer to data
+ * @param[in] maze Pointer to the maze
+ * @param[in] num The ith robot from 1 to obj->nRobots
+ * @return 0 still active; -1 dead
  */
 int collideCheck(fiExp *obj, char **maze, int num)
 {
@@ -204,7 +209,7 @@ int collideCheck(fiExp *obj, char **maze, int num)
             continue;
 
         Robot *othRbt = &obj->robots[i];
-        if (othRbt->status > ACTIVE)
+        if (othRbt->status > WIN)
             continue;
 
         if (currRbt->currPos.x == othRbt->currPos.x && currRbt->currPos.y == othRbt->currPos.y)
@@ -212,19 +217,20 @@ int collideCheck(fiExp *obj, char **maze, int num)
             if (currRbt->health > othRbt->health)
             {
                 othRbt->status = DEAD;
-                currRbt->health--;
+                currRbt->wins++;
+                currRbt->health -= currRbt->wins;
                 if (currRbt->health <= 0)
                 {
                     currRbt->status = DEAD;
                     ret = -1;
                 }
-                    
             }
             else if (currRbt->health < othRbt->health)
             {
                 currRbt->status = DEAD;
                 ret = -1;
-                othRbt->health--;
+                othRbt->wins++;
+                othRbt->health -= othRbt->wins;
                 if (othRbt->health <= 0)
                     othRbt->status = DEAD;
             }
@@ -234,7 +240,7 @@ int collideCheck(fiExp *obj, char **maze, int num)
                 ret = -1;
             }
 
-            if (currRbt->status > ACTIVE)
+            if (currRbt->status > WIN)
                 break;
         }
     }
@@ -253,7 +259,7 @@ void step(fiExp *obj, char **maze, int i)
     bool isEvPnt = false, isSuccMove = false, isDead = false;
     Robot *robot = &obj->robots[i];
 
-    if (robot->status)
+    if (robot->status > ACTIVE)
         return;
 
     Pos *currPos = &robot->currPos, next;
@@ -296,15 +302,16 @@ void step(fiExp *obj, char **maze, int i)
         }
     }
 
-    if (isEvPnt)
-    {
-        printf("The path is:\n");
-        for (int k = 0; k <= robot->top; ++k)
-        {
-            printf("(%d,%d)", robot->stack[k].x, robot->stack[k].y);
-        }
-    }
-    else if (*currDir >= DIR_MAX)
+    // if (isEvPnt)
+    // {
+    //     printf("The path is:\n");
+    //     for (int k = 0; k <= robot->top; ++k)
+    //     {
+    //         printf("(%d,%d)", robot->stack[k].x, robot->stack[k].y);
+    //     }
+    // }
+    // else
+    if (*currDir >= DIR_MAX)
     { /* backtracking  */
         Node n;
         pop(robot, &n);
@@ -325,11 +332,50 @@ void step(fiExp *obj, char **maze, int i)
     }
 }
 
-void sim(fiExp *obj, char **maze)
+/**
+ * @return Number of active robots
+ */
+
+int isRbtActive(fiExp *obj)
 {
+    int ret = 0;
+
     for (int i = 1; i <= obj->nRobots; ++i)
     {
-        step(obj, maze, i);
+        Robot *r = &obj->robots[i];
+        if (r->status == ACTIVE)
+            ++ret;
+    }
+
+    return ret;
+}
+
+void sim(fiExp *obj, char **maze)
+{
+    while (isRbtActive(obj))
+        for (int i = 1; i <= obj->nRobots; ++i)
+        {
+            step(obj, maze, i);
+        }
+}
+
+void pntOutput(fiExp *obj)
+{
+    const char *str[] = {"ACTIVE", "WIN", "DIE", "NO PATH"};
+    for (int i = 1; i <= obj->nRobots; ++i)
+    {
+        Robot *r = &obj->robots[i];
+        printf("Robot %d: %s\n", i, str[r->status]);
+
+        if (r->status != NOPATH)
+        {
+            printf("Path: ");
+            for (int j = 0; j <= r->top; ++j)
+            {
+                printf("(%d,%d)%s", r->stack[j].x, r->stack[j].y, (j != r->top) ? " -> " : "");
+            }
+            printf("\n");
+        }
     }
 }
 
@@ -370,14 +416,22 @@ int main()
     {
         int x, y, h;
         scanf("%d %d %d", &x, &y, &h);
-        obj->robots[i].initPos.x = obj->robots[i].currPos.x = x;
-        obj->robots[i].initPos.y = obj->robots[i].currPos.y = y;
-        obj->robots[i].health = h;
+        Robot *r = &obj->robots[i];
+        r->initPos.x = r->currPos.x = x;
+        r->initPos.y = r->currPos.y = y;
+        r->health = h;
+        r->mark[r->currPos.x][r->currPos.y] = 1;
+        push(r, r->currPos.x, r->currPos.y, UP);
     }
 
-    printFiExp(obj);
+    // printFiExp(obj);
     sim(obj, maze);
+    pntOutput(obj);
 
+    for (int i = 1; i <= H; ++i)
+        free(maze[i]);
+    free(maze);
     deleteFiExp(obj);
+    
     return 0;
 }
