@@ -7,3 +7,6 @@ Brief description:
   prob2.c : Problem 2. Copy center processing
 
 Other issues: None
+
+PowerShell
+  > Get-Content q1.smp.in | & prob1.exe
