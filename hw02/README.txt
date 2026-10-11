@@ -9,4 +9,5 @@ Brief description:
 Other issues: None
 
 PowerShell
-  > Get-Content q1.smp.in | & prob1.exe
+> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+> Get-Content q1.smp.in | & prob1.exe

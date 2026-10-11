@@ -60,6 +60,12 @@ foreach ($file in $testFiles) {
     # 執行程式並將輸入傳入
     Get-Content $inPath | & ".\prob${subTask}.exe" > $outPath
 
+    # 檢查輸出檔是否存在以及長度是否為 0（空檔）
+    if ((-not (Test-Path $outPath)) -or ((Get-Item $outPath).Length -eq 0)) {
+        Write-Host "Test ${i}: WA (輸出檔為空檔，程式可能崩潰或未印出任何內容)" -ForegroundColor Red
+        continue;
+    }
+
     # 比對輸出
     $diff = Compare-Object (Get-Content $outPath) (Get-Content $ansPath)
     if ($null -eq $diff) {
