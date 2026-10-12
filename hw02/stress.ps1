@@ -58,7 +58,7 @@ foreach ($file in $testFiles) {
     }
     
     # 執行程式並將輸入傳入
-    Get-Content $inPath | & ".\prob${subTask}.exe" > $outPath
+    Get-Content $inPath | & ".\prob${subTask}.exe" | Out-File -FilePath $outPath -Encoding ascii
 
     # 檢查輸出檔是否存在以及長度是否為 0（空檔）
     if ((-not (Test-Path $outPath)) -or ((Get-Item $outPath).Length -eq 0)) {

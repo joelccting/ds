@@ -10,15 +10,6 @@
 #define dbgprint(x) ((void)0)
 #endif
 
-/**
- * +---------> y
- * |
- * |
- * |
- * v
- * x
- */
-
 typedef enum
 {
     UP,
@@ -210,14 +201,24 @@ void printFiExp(fiExp *obj)
     }
 }
 
+void setRobotStatus(Robot *r, Status s)
+{
+    r->status = s;
+
+    if (s == DEAD)
+    {
+        r->currPos.x = r->currPos.y = 0;
+    }
+}
+
 /**
  * @brief Check collision
  * @param[in] obj Pointer to data
  * @param[in] maze Pointer to the maze
  * @param[in] num The ith robot from 1 to obj->nRobots
- * @return 0 still active; -1 dead
+ * @return 0 active; -1 dead
  */
-int collideCheck(fiExp *obj, char **maze, int num)
+int isCollide(fiExp *obj, char **maze, int num)
 {
     int ret = 0;
     Robot *currRbt = &obj->robots[num];
@@ -227,51 +228,57 @@ int collideCheck(fiExp *obj, char **maze, int num)
             continue;
 
         Robot *othRbt = &obj->robots[i];
-        if (othRbt->status > WIN)
+        if (othRbt->status >= WIN)
             continue;
 
         if (currRbt->currPos.x == othRbt->currPos.x && currRbt->currPos.y == othRbt->currPos.y)
         {
             if (currRbt->health > othRbt->health)
             {
-                othRbt->status = DEAD;
-                othRbt->currPos.x = othRbt->currPos.y = 0; /* move out the dead robot */
+                setRobotStatus(othRbt, DEAD);
                 currRbt->wins++;
                 currRbt->health -= currRbt->wins;
                 if (currRbt->health <= 0)
                 {
-                    currRbt->status = DEAD;
-                    currRbt->currPos.x = currRbt->currPos.y = 0;
+                    setRobotStatus(currRbt, DEAD);
                     ret = -1;
                 }
             }
             else if (currRbt->health < othRbt->health)
             {
-                currRbt->status = DEAD;
-                currRbt->currPos.x = currRbt->currPos.y = 0; /* move out the dead robot */
+                setRobotStatus(currRbt, DEAD);
                 ret = -1;
                 othRbt->wins++;
                 othRbt->health -= othRbt->wins;
                 if (othRbt->health <= 0)
                 {
-                    othRbt->status = DEAD;
-                    othRbt->currPos.x = othRbt->currPos.y = 0;
+                    setRobotStatus(othRbt, DEAD);
                 }
             }
             else
             {
-                currRbt->status = othRbt->status = DEAD;
-                currRbt->currPos.x = currRbt->currPos.y = 0; /* move out the dead robot */
-                othRbt->currPos.x = othRbt->currPos.y = 0;
+                setRobotStatus(currRbt, DEAD);
+                setRobotStatus(othRbt, DEAD);
                 ret = -1;
             }
-
-            if (currRbt->status > WIN)
-                break;
         }
+
+        if (currRbt->status > WIN)
+            break;
     }
 
     return ret;
+}
+
+/**
+ * @return 1 out of boundary; 0 on the map
+ */
+int isOutOfBnd(fiExp *obj, Pos *next)
+{
+    if (1 <= next->x && next->x <= obj->nRows &&
+        1 <= next->y && next->y <= obj->nCols)
+        return 0;
+    return 1;
 }
 
 /**
@@ -282,97 +289,83 @@ int collideCheck(fiExp *obj, char **maze, int num)
  */
 void step(fiExp *obj, char **maze, int i)
 {
-    bool isEvPnt = false, isSuccMove = false;
     Robot *robot = &obj->robots[i];
 
     if (robot->status != ACTIVE)
         return;
 
-    Pos *currPos = &robot->currPos, next;
+    Pos *currPos = &robot->currPos;
     Dir *currDir = &robot->currDir;
-    // obj->robots[i].mark[currPos.x][currPos.y] = 1;
-    // push(&obj->robots[i], currPos.x, currPos.y, currDir);
 
-    // while (!isEmpty(&obj->robots[i]) && !found)
-    // {
-
-    while (*currDir < DIR_MAX && !isEvPnt && !isSuccMove)
+    while (*currDir < DIR_MAX)
     {
+        Pos next;
         next.x = currPos->x + move[*currDir].dx;
         next.y = currPos->y + move[*currDir].dy;
 
-        if (next.x == obj->evPnt.x && next.y == obj->evPnt.y)
+        if (isOutOfBnd(obj, &next) || (maze[next.x][next.y] == '#'))
+        {
+            ++(*currDir);
+            continue;
+        }
+
+        if (maze[next.x][next.y] == 'E')
+        // if (next.x == obj->evPnt.x && next.y == obj->evPnt.y)
         { /* reach evaculation point */
-            isEvPnt = true;
             // push(&obj->robots[i], n.x, n.y, n.dir);
             push(robot, next.x, next.y, DIR_MAX);
             robot->status = WIN;
+            robot->currPos.x = robot->currPos.y = 0;
+            return;
         }
-        else if (1 <= next.x && next.x <= obj->nRows &&
-                 1 <= next.y && next.y <= obj->nCols &&
-                 maze[next.x][next.y] == '.' &&
+        else if (maze[next.x][next.y] == '.' &&
                  robot->mark[next.x][next.y] == 0)
         { /* move to a new position */
-            isSuccMove = true;
             robot->mark[next.x][next.y] = 1;
             push(robot, next.x, next.y, *currDir);
             currPos->x = next.x;
             currPos->y = next.y;
             *currDir = UP;
-            if (collideCheck(obj, maze, i))
-            {
-                robot->status = DEAD;
-                return;
-            }
+            isCollide(obj, maze, i);
+            return;
         }
-        else // change direction
+        else
         {
             ++(*currDir);
         }
     }
 
-    // if (isEvPnt)
-    // {
-    //     printf("The path is:\n");
-    //     for (int k = 0; k <= robot->top; ++k)
-    //     {
-    //         printf("(%d,%d)", robot->stack[k].x, robot->stack[k].y);
-    //     }
-    // }
-    // else
     if (*currDir >= DIR_MAX)
     { /* backtracking  */
-        while (*currDir >= DIR_MAX)
-        {
-            if (isEmpty(robot))
-            { /* NO PATH */
-                robot->status = NOPATH;
-                return;
-            }
-            Node n;
-            pop(robot, &n);
-            robot->mark[n.x][n.y] = 0;
-
-            // if (n.x == robot->initPos.x && n.y == robot->initPos.y)
-            if (isEmpty(robot))
-            { /* NO PATH */
-                robot->status = NOPATH;
-                return;
-            }
-
-            robot->stack[robot->top].dir++;
-            getTop(robot, &n);
-            currPos->x = n.x;
-            currPos->y = n.y;
-            *currDir = n.dir;
+        if (isEmpty(robot))
+        { /* NO PATH */
+            setRobotStatus(robot, NOPATH);
+            return;
         }
+
+        Node deadEnd;
+        pop(robot, &deadEnd);
+        robot->mark[deadEnd.x][deadEnd.y] = 0;
+
+        if (isEmpty(robot))
+        { /* NO PATH */
+            setRobotStatus(robot, NOPATH);
+            return;
+        }
+
+        Node top;
+        getTop(robot, &top);
+        currPos->x = top.x;
+        currPos->y = top.y;
+        *currDir = deadEnd.dir + 1;
     }
 }
 
 /**
+ * @brief Check how many robots are still active
+ * @param[in]
  * @return Number of active robots
  */
-
 int isRbtActive(fiExp *obj)
 {
     int ret = 0;
@@ -387,6 +380,12 @@ int isRbtActive(fiExp *obj)
     return ret;
 }
 
+/**
+ * @brief Print the result
+ * @param[in] obj Pointer to data
+ * @param[in] i the ith robot
+ * @return None
+ */
 void pntOutput(fiExp *obj, int i)
 {
     const char *str[] = {"ACTIVE", "WIN", "DIE", "NO PATH"};
@@ -413,7 +412,7 @@ void sim(fiExp *obj, char **maze)
         {
             step(obj, maze, i);
         }
-        pntOutput(obj, 1);
+        // pntOutput(obj, 1);
     }
 }
 
@@ -455,22 +454,11 @@ int main()
         int x, y, h;
         scanf("%d %d %d", &x, &y, &h);
         Robot *r = &obj->robots[i];
-        switch (maze[x][y])
-        {
-        case '#':
-            r->status = NOPATH;
-            break;
-        case 'E':
-            r->status = WIN;
-            break;
-        default:
-            r->initPos.x = r->currPos.x = x;
-            r->initPos.y = r->currPos.y = y;
-            r->health = h;
-            r->mark[r->currPos.x][r->currPos.y] = 1;
-            push(r, r->currPos.x, r->currPos.y, UP);
-            break;
-        }
+        r->initPos.x = r->currPos.x = x;
+        r->initPos.y = r->currPos.y = y;
+        r->health = h;
+        r->mark[r->currPos.x][r->currPos.y] = 1;
+        push(r, r->currPos.x, r->currPos.y, UP);
     }
 
 #if 1
