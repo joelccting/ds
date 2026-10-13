@@ -129,7 +129,7 @@ typedef struct
     int nCols;
     int nRobots;
     Robot *robots;
-    Pos evPnt;
+    // Pos evPnt;
 } fiExp;
 
 /**
@@ -281,6 +281,8 @@ int isOutOfBnd(fiExp *obj, Pos *next)
     return 1;
 }
 
+void pntOutput(fiExp *obj, int i);
+
 /**
  * @brief move robot i one step
  * @param[in] obj pointer to data
@@ -314,8 +316,7 @@ void step(fiExp *obj, char **maze, int i)
         { /* reach evaculation point */
             // push(&obj->robots[i], n.x, n.y, n.dir);
             push(robot, next.x, next.y, DIR_MAX);
-            robot->status = WIN;
-            robot->currPos.x = robot->currPos.y = 0;
+            setRobotStatus(robot, WIN);
             return;
         }
         else if (maze[next.x][next.y] == '.' &&
@@ -327,6 +328,13 @@ void step(fiExp *obj, char **maze, int i)
             currPos->y = next.y;
             *currDir = UP;
             isCollide(obj, maze, i);
+#if 0
+            if (i == 49 && next.x == 1 && next.y <= 2)
+            {
+                // printf("(%d,%d) ", next.x, next.y);
+                pntOutput(obj, 49);
+            }
+#endif
             return;
         }
         else
@@ -358,11 +366,12 @@ void step(fiExp *obj, char **maze, int i)
         currPos->x = top.x;
         currPos->y = top.y;
         *currDir = deadEnd.dir + 1;
+        isCollide(obj, maze, i);
     }
 }
 
 /**
- * @brief Check how many robots are still active
+ * @brief Check any robots are still active
  * @param[in]
  * @return Number of active robots
  */
@@ -411,8 +420,9 @@ void sim(fiExp *obj, char **maze)
         for (int i = 1; i <= obj->nRobots; ++i)
         {
             step(obj, maze, i);
+            // if (i == 49)
+            //     pntOutput(obj, 49);
         }
-        // pntOutput(obj, 1);
     }
 }
 
@@ -441,13 +451,18 @@ int main()
     for (int i = 1; i <= H; ++i)
         scanf(" %s", maze[i] + 1);
 
-    for (int i = 1; i <= H; ++i)
-        for (int j = 1; j <= W; ++j)
-            if (maze[i][j] == 'E')
-            {
-                obj->evPnt.x = i;
-                obj->evPnt.y = j;
-            }
+    // for (int i = 0; i < H + 2; ++i)
+    //     maze[i][0] = maze[i][H + 1] = '#';
+    // for (int i = 0; i < W + 2; ++i)
+    //     maze[0][i] = maze[W + 1][0] = '#';
+
+    // for (int i = 1; i <= H; ++i)
+    //     for (int j = 1; j <= W; ++j)
+    //         if (maze[i][j] == 'E')
+    //         {
+    //             obj->evPnt.x = i;
+    //             obj->evPnt.y = j;
+    //         }
 
     for (int i = 1; i <= M; ++i)
     {
@@ -461,9 +476,9 @@ int main()
         push(r, r->currPos.x, r->currPos.y, UP);
     }
 
-#if 1
     // printFiExp(obj);
     sim(obj, maze);
+#if 1
     for (int i = 1; i <= obj->nRobots; ++i)
         pntOutput(obj, i);
 
