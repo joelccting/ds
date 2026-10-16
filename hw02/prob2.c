@@ -3,13 +3,65 @@
 #include <assert.h>
 #include <string.h>
 
+#define dbg(x) printf x
+
 typedef long long LL;
 
 typedef enum
 {
+    EV_COMPLETE = 1,
+    EV_OVERHEAT,
+    EV_REST_END,
+    EV_ARRIVE,
+    EV_REASSIGN,
+    EV_ASSIGN,
+    EV_START
+} EventType;
+
+typedef struct
+{
+    LL time;
+    EventType type;
+    int printer_id;
+    int job_id;
+    int src_printer_id;
+    int pages;
+} Event;
+
+int is_higher_priority(Event *a, Event *b)
+{
+    if (a->time != b->time)
+        return a->time < b->time;
+
+    if (a->type != b->type)
+        return a->type < b->type;
+
+    switch (a->type)
+    {
+    case EV_COMPLETE:
+    case EV_OVERHEAT:
+    case EV_REST_END:
+    case EV_START:
+        return a->printer_id < b->printer_id;
+
+    case EV_ARRIVE:
+    case EV_ASSIGN:
+        return a->job_id < b->job_id;
+
+    case EV_REASSIGN:
+        if (a->src_printer_id != b->src_printer_id)
+            return a->src_printer_id < b->src_printer_id;
+        return a->job_id < b->job_id;
+    }
+    return 0;
+}
+
+typedef enum
+{
+    IDLE = 0,
     COMPLETE,
     OVERHEAT,
-    REST,
+    RESTEND,
     ARRIVE,
     REASSIGN,
     ASSIGN,
@@ -21,98 +73,168 @@ typedef struct
     int id;
     int arrivTime;
     int pages;
-    int isDone;
+    Status status;
 } Job;
 
 typedef struct
 {
-    Job *job;
-    int size;
-    int front;
-    int rear;
-} JobData;
-
-typedef struct
-{
     int front;
     int rear;
     int size;
-    Job *que;
+    int *idx;
 } Queue;
 
-int getArrivJob(JobData *jdata, int tick)
+int isEmpty(Queue *que)
 {
-    int front = jdata->front;
-    while (jdata->job[++front].arrivTime == tick)
+    if (que->front == que->rear)
+        ;
     {
-        printf("Time %d: ARRIVE Job %d, pages=%d\n", tick, jdata->job[front].id, jdata->job[front].pages);
+        dbg(("ERROR: is empty!\n"));
+        return 1;
     }
 
-    return front - 1;
+    return 0;
 }
 
-void freeArrivJob(Queue *q)
+int isFull(Queue *que)
 {
-    if (q)
+    int rear = (que->rear + 1) % que->size;
+    if (que->front == rear)
     {
-        free(q->que);
-        free(q);
+        dbg(("ERROR: is full!\n"));
+        return 1;
     }
-}
-
-int isFull(Queue *q)
-{
-    int rear = q->rear;
-    if ((rear + 1) % q->size == q->front)
-        return 1;
 
     return 0;
 }
 
-int isEmpty(Queue *q)
+int enque(Queue *que, int idx)
 {
-    if (q->front == q->rear)
-        return 1;
-
-    return 0;
-}
-
-int enque(Queue *q, Job *j)
-{
-    if (isFull(q))
+    if (isFull(que))
         return -1;
 
-    q->rear = (q->rear + 1) % q->size;
-    memcpy(q->que + q->rear, j, sizeof(Job));
+    que->rear = (que->rear + 1) % que->size;
+    que->idx[que->rear] = idx;
     return 0;
 }
 
-int deque(Queue *q, Job *j)
+int deque(Queue *que)
 {
-    if (isEmpty(q))
+    if (isEmpty(que))
         return -1;
 
-    q->front = (q->front + 1) % q->size;
-    memcpy(j, q->que + q->rear, sizeof(Job));
-    return 0;
+    que->front = (que->front + 1) % que->size;
+    return que->idx[que->front];
 }
+
+typedef enum
+{
+    PS_IDLE,
+    PS_BUSY,
+    PS_RESTING
+} PrinterState;
 
 typedef struct
 {
     int id;
-    int speed;     // time per page
-    int heatLimit; // max number of consecutively printing pages before overheating
-    int restTime;  // required rest time
-    Queue *task;   // task queue
-    LL remPages;
-    Status state;
+    int speed;      // time per page
+    int heat_limit; // max number of consecutively printing pages before overheating
+    int rest_time;  // required rest time
+
+    Queue *tskq;    // tskq queue
+    LL currRePages; // current remaining pages
+    int currJobId;  // current job id
+    LL cpPageCount; // consecutive printed page count
+    PrinterState state;
 } Printer;
 
 typedef struct
 {
-    Printer *pnt;
-    int size;
-} PrinterData;
+    Job *jobs;
+    int nJobs;
+    int nEnqeue;
+    Queue *arque; // arrival queue
+    Printer *printer;
+    int nPrinters;
+} CopyCenter;
+
+/**
+ * @param[in] nPrn: number of printers
+ * @param[in] nJob: number of jobs
+ */
+CopyCenter *cc_create(int nPrn, int nJob)
+{
+    CopyCenter *cc = NULL;
+    cc = (CopyCenter *)calloc(1, sizeof(CopyCenter));
+    assert(cc);
+    cc->nPrinters = nPrn;
+    cc->printer = (Printer *)calloc(nPrn + 1, sizeof(Printer));
+    assert(cc->printer);
+    cc->nJobs = nJob;
+    cc->arque = (Queue *)calloc(nJob + 1, sizeof(Job *));
+    assert(cc->arque);
+    cc->jobs = (Job *)calloc(nJob + 1, sizeof(Job));
+    assert(cc->jobs);
+
+    for (int i = 1; i <= nPrn; ++i)
+    {
+        Printer *p = &cc->printer[i];
+        p->tskq = (Queue *)calloc(1, sizeof(Queue));
+        assert(p->tskq);
+        // p->tskq->size = nJob + 1;
+        p->tskq->front = p->tskq->rear = 0;
+        p->tskq->idx = (int *)calloc(nJob + 1, sizeof(int));
+        assert(p->tskq->idx);
+    }
+
+    return cc;
+}
+
+void cc_destroy(CopyCenter *cc)
+{
+    if (!cc)
+        return;
+
+    for (int i = 1; i <= cc->nPrinters; ++i)
+    {
+        Printer *p = &cc->printer[i];
+        free(p->tskq->idx);
+        free(p->tskq);
+    }
+    free(cc->arque);
+    free(cc->printer);
+    free(cc->jobs);
+    free(cc);
+}
+
+/**
+ * @return 0: no jobs; >0: the arrival job index; <0: errors
+ */
+int cc_setArrivJob(CopyCenter *cc, int tick)
+{
+    Job *jobs = cc->jobs;
+    Queue *arque = cc->arque;
+    int t = cc->nEnqeue + 1;
+
+    while (t <= cc->nJobs)
+    {
+        printf("t=%d/%d\n", t, cc->nJobs);
+        if (jobs[t].arrivTime == tick)
+        {
+            printf("Time %d: ARRIVE Job %d, pages=%d\n", tick, jobs[t].id, jobs[t].pages);
+            enque(arque, jobs[t].id);
+            cc->nEnqeue++;
+        }
+        else
+        {
+            break;
+        }
+
+        ++t;
+    }
+
+    return 0;
+}
 
 int cmpArrivTime(const void *a, const void *b)
 {
@@ -130,43 +252,52 @@ int cmpArrivTime(const void *a, const void *b)
  * @brief get the printer that is expected to finish the earliest
  * @return the printer number
  */
-int getFiEarliest(PrinterData *p, int M)
+int getFiEarliest(CopyCenter *p, int M)
 {
     int idx = INT_MAX;
-    LL finTime = LLONG_MAX;
-    for (int i = 1; i <= M; ++i)
-    {
-        LL remTime = p->pnt[i].remPages * p->pnt[i].speed + p->pnt[i].restTime;
-        if (finTime > remTime)
-        {
-            finTime = remTime;
-            idx = i;
-        }
-    }
+    // LL finTime = LLONG_MAX;
+    // for (int i = 1; i <= M; ++i)
+    // {
+    //     LL remTime = p->pnt[i].remPages * p->pnt[i].speed + p->pnt[i].rest_time;
+    //     if (finTime > remTime)
+    //     {
+    //         finTime = remTime;
+    //         idx = i;
+    //     }
+    // }
 
     return idx;
 }
 
-void step(PrinterData *pdata, JobData *jdata, int tick)
+void step(CopyCenter *cc, int tick)
 {
-    int n = getArrivJob(jdata, tick);
-    for (int i = 1; i <= n; ++i)
-    {
-        int pnt = getFiEarliest(pdata, pdata->size);
-        int jobid = jdata->job[++jdata->front].id;
-        printf("Time %d: ASSIGN Job %d to Printer %d\n", tick, jobid, pnt);
-        enque(pdata->pnt, &jdata->job[jdata->front]);
-    }
+    // int front;
+    cc_setArrivJob(cc, tick);
+    // {
+    //     printf("Time %d: ARRIVE Job %d, pages=%d\n", tick, jque->job[front].id, jque->job[front].pages);
+    // }
+    // for (int i = 1; i <= n; ++i)
+    // {
+    //     int pnt = getFiEarliest(pdata, pdata->size);
+    //     int jobid = jque->job[++jque->front].id;
+    //     printf("Time %d: ASSIGN Job %d to Printer %d\n", tick, jobid, pnt);
+    //     enque(pdata->pnt, &jque->job[jque->front]);
+    // }
 }
 
 /**
  * @return 1 if all done; 0 otherwise
  */
-int isAllJobDone(JobData *j, int N)
+int cc_isDone(CopyCenter *cc)
 {
-    for (int i = 1; i <= N; ++i)
-        if (!j->job[i].isDone)
+    int sz = cc->nJobs;
+    for (int i = 1; i <= sz; ++i)
+    {
+        Status s = cc->jobs[i].status;
+        if (s != COMPLETE)
             return 0;
+    }
+
     return 1;
 }
 
@@ -180,55 +311,40 @@ int main()
         return 0;
     }
 
-    PrinterData *p = (PrinterData *)calloc(1, sizeof(PrinterData));
-    assert(p);
-    p->size = M;
-    p->pnt = (Printer *)calloc(M + 1, sizeof(Printer));
-    assert(p->pnt);
+    CopyCenter *cc = cc_create(M, N);
 
     for (int i = 1; i <= M; ++i)
     {
+        Printer *p = &cc->printer[i];
         int s, h, r;
         scanf("%d %d %d", &s, &h, &r);
-        p->pnt[i].id = i;
-        p->pnt[i].speed = s;
-        p->pnt[i].heatLimit = h;
-        p->pnt[i].restTime = r;
-
-        p->pnt[i].task = (Queue *)calloc(1, sizeof(Queue));
-        assert(p->pnt[i].task);
-        p->pnt[i].task->size = N + 5;
-        p->pnt[i].task->front = p->pnt[i].task->rear = 0;
-        p->pnt[i].task->que = (Job *)calloc(p->pnt[i].task->size, sizeof(Job));
-        assert(p->pnt[i].task->que);
+        p->id = i;
+        p->speed = s;
+        p->heat_limit = h;
+        p->rest_time = r;
+        p->state = PS_IDLE;
     }
 
-    JobData *j = (JobData *)calloc(1, sizeof(JobData));
-    assert(j);
-    j->size = N;
-    j->front = 0;
-    j->rear = N;
-    j->job = (Job *)calloc(N + 1, sizeof(Job));
-    assert(j);
     for (int i = 1; i <= N; ++i)
     {
+        Job *j = &cc->jobs[i];
         int a, p;
         scanf("%d %d", &a, &p);
-        j->job[i].id = i;
-        j->job[i].arrivTime = a;
-        j->job[i].pages = p;
+        j->id = i;
+        j->arrivTime = a;
+        j->pages = p;
     }
 
-    qsort(j->job + 1, N, sizeof(Job), cmpArrivTime);
+    qsort(cc->jobs + 1, N, sizeof(Job), cmpArrivTime);
     // for (int i = 1; i <= N; ++i)
     // {
     //     printf("%d: %d, %d\n", j->job[i].id, j->job[i].arrivTime, j->job[i].pages);
     // }
 
     int tick = 0;
-    while (!isAllJobDone(j, N))
+    while (!cc_isDone(cc))
     {
-        step(p, j, tick);
+        step(cc, tick);
         tick++;
         if (tick > 3)
             break;
@@ -236,16 +352,7 @@ int main()
 
     printf("Finish time: %d", tick);
 
-    for (int i = 1; i <= M; ++i)
-    {
-        free(p->pnt[i].task->que);
-        free(p->pnt[i].task);
-    }
-
-    free(p->pnt);
-    free(p);
-    free(j->job);
-    free(j);
+    cc_destroy(cc);
 
     return 0;
 }
