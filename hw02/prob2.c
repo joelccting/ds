@@ -20,18 +20,19 @@ typedef enum
 
 typedef struct
 {
-    LL time;
     EventType type;
-    int printer_id;
-    int job_id;
-    int src_printer_id;
+    int printerId;
+    int srcPrinterId;
+
+    int jobId;
+    LL arrivalTime;
     int pages;
 } Event;
 
 int is_higher_priority(Event *a, Event *b)
 {
-    if (a->time != b->time)
-        return a->time < b->time;
+    if (a->arrivalTime != b->arrivalTime)
+        return a->arrivalTime < b->arrivalTime;
 
     if (a->type != b->type)
         return a->type < b->type;
@@ -42,38 +43,132 @@ int is_higher_priority(Event *a, Event *b)
     case EV_OVERHEAT:
     case EV_REST_END:
     case EV_START:
-        return a->printer_id < b->printer_id;
+        return a->printerId < b->printerId;
 
     case EV_ARRIVE:
     case EV_ASSIGN:
-        return a->job_id < b->job_id;
+        return a->jobId < b->jobId;
 
     case EV_REASSIGN:
-        if (a->src_printer_id != b->src_printer_id)
-            return a->src_printer_id < b->src_printer_id;
-        return a->job_id < b->job_id;
+        if (a->srcPrinterId != b->srcPrinterId)
+            return a->srcPrinterId < b->srcPrinterId;
+        return a->jobId < b->jobId;
     }
     return 0;
 }
 
-typedef enum
+typedef struct
 {
-    IDLE = 0,
-    COMPLETE,
-    OVERHEAT,
-    RESTEND,
-    ARRIVE,
-    REASSIGN,
-    ASSIGN,
-    START
-} Status;
+    Event *data;
+    int capacity;
+    int size;
+} PriorityQueue;
+
+PriorityQueue *pq_create(int capacity)
+{
+    PriorityQueue *pq = (PriorityQueue *)calloc(1, sizeof(PriorityQueue));
+    assert(pq);
+    pq->capacity = capacity;
+    pq->data = (Event *)calloc(capacity, sizeof(Event));
+    assert(pq->data);
+    return pq;
+}
+
+void pq_destroy(PriorityQueue *pq)
+{
+    if (!pq)
+        return;
+
+    free(pq->data);
+    free(pq);
+}
+
+void swap(Event *a, Event *b)
+{
+    Event t;
+
+    t = *a;
+    *a = *b;
+    *b = t;
+}
+
+void heapifyUp(PriorityQueue *pq, int index)
+{
+    int parent = (index - 1) / 2;
+    while (index > 0 && is_higher_priority(pq->data + index, pq->data + parent))
+    {
+        swap(&pq->data[index], &pq->data[parent]);
+        index = parent;
+        parent = (index - 1) / 2;
+    }
+}
+
+void heapifyDown(PriorityQueue *pq, int index)
+{
+    int smallest = index;
+    int left = 2 * index + 1;
+    int right = 2 * index + 2;
+
+    if (left < pq->size && is_higher_priority(pq->data + left, pq->data + smallest))
+    {
+        smallest = left;
+    }
+    if (right < pq->size && is_higher_priority(pq->data + right, pq->data + smallest))
+    {
+        smallest = right;
+    }
+
+    if (smallest != index)
+    {
+        swap(&pq->data[index], &pq->data[smallest]);
+        heapifyDown(pq, smallest);
+    }
+}
+
+void pq_push(PriorityQueue *pq, Event *e)
+{
+    if (pq->size == pq->capacity)
+    {
+        pq->capacity *= 2;
+        pq->data = (Event *)realloc(pq->data, sizeof(Event) * pq->capacity);
+    }
+
+    pq->data[pq->size] = *e;
+    pq->size++;
+    heapifyUp(pq, pq->size - 1);
+}
+
+int pq_top(PriorityQueue *pq, Event *e)
+{
+    if (pq->size == 0)
+    {
+        return -1;
+    }
+
+    *e = pq->data[0];
+    return 0;
+}
+
+int pq_pop(PriorityQueue *pq, Event *e)
+{
+    if (pq->size == 0)
+    {
+        return -1;
+    }
+
+    *e = pq->data[0];
+    pq->data[0] = pq->data[pq->size - 1];
+    pq->size--;
+    heapifyDown(pq, 0);
+
+    return 0;
+}
 
 typedef struct
 {
     int id;
-    int arrivTime;
+    int arrivalTime;
     int pages;
-    Status status;
 } Job;
 
 typedef struct
@@ -81,13 +176,12 @@ typedef struct
     int front;
     int rear;
     int size;
-    int *idx;
+    Job *data;
 } Queue;
 
 int isEmpty(Queue *que)
 {
     if (que->front == que->rear)
-        ;
     {
         dbg(("ERROR: is empty!\n"));
         return 1;
@@ -98,6 +192,7 @@ int isEmpty(Queue *que)
 
 int isFull(Queue *que)
 {
+
     int rear = (que->rear + 1) % que->size;
     if (que->front == rear)
     {
@@ -108,84 +203,98 @@ int isFull(Queue *que)
     return 0;
 }
 
-int enque(Queue *que, int idx)
+int enque(Queue *que, Job *data)
 {
     if (isFull(que))
         return -1;
 
     que->rear = (que->rear + 1) % que->size;
-    que->idx[que->rear] = idx;
+    que->data[que->rear] = *data;
     return 0;
 }
 
-int deque(Queue *que)
+int deque(Queue *que, Job *job)
 {
     if (isEmpty(que))
         return -1;
 
     que->front = (que->front + 1) % que->size;
-    return que->idx[que->front];
+    *job = que->data[que->front];
+    return 0;
 }
 
-typedef enum
+int que_get_pages(Queue *que)
 {
-    PS_IDLE,
-    PS_BUSY,
-    PS_RESTING
-} PrinterState;
+    int retval = 0;
+    if (isEmpty(que))
+        return retval;
+
+    int front = que->front = (que->front + 1) % que->size;
+    int rear = que->rear;
+    if (front <= rear)
+    {
+        for (int i = front; i <= rear; ++i)
+            retval += que->data[i].pages;
+    }
+    else
+    {
+        for (int i = front; i <= que->size; ++i)
+            retval += que->data[i].pages;
+        for (int i = 0; i <= rear; ++i)
+            retval += que->data[i].pages;
+    }
+
+    return retval;
+}
 
 typedef struct
 {
     int id;
-    int speed;      // time per page
+    int speed;      // required time per page
     int heat_limit; // max number of consecutively printing pages before overheating
-    int rest_time;  // required rest time
-
-    Queue *tskq;    // tskq queue
-    LL currRePages; // current remaining pages
-    int currJobId;  // current job id
-    LL cpPageCount; // consecutive printed page count
-    PrinterState state;
+    int rest_time;  // required rest arrivalTime
+    int n_tasks;
+    Queue *task_que; // task_que queue
+    int n_to_print_pages;
 } Printer;
+
+void printer_set_to_print(Printer *p)
+{
+    p->n_to_print_pages = que_get_pages(p->task_que);
+}
 
 typedef struct
 {
-    Job *jobs;
-    int nJobs;
-    int nEnqeue;
-    Queue *arque; // arrival queue
     Printer *printer;
     int nPrinters;
+
+    PriorityQueue *pq;
 } CopyCenter;
 
 /**
- * @param[in] nPrn: number of printers
- * @param[in] nJob: number of jobs
+ * @param[in] nPrinters: number of printers
+ * @param[in] nJobs: number of job
  */
-CopyCenter *cc_create(int nPrn, int nJob)
+CopyCenter *cc_create(int nPrinters, int nJobs)
 {
     CopyCenter *cc = NULL;
     cc = (CopyCenter *)calloc(1, sizeof(CopyCenter));
     assert(cc);
-    cc->nPrinters = nPrn;
-    cc->printer = (Printer *)calloc(nPrn + 1, sizeof(Printer));
+    cc->nPrinters = nPrinters;
+    cc->printer = (Printer *)calloc(nPrinters + 1, sizeof(Printer));
     assert(cc->printer);
-    cc->nJobs = nJob;
-    cc->arque = (Queue *)calloc(nJob + 1, sizeof(Job *));
-    assert(cc->arque);
-    cc->jobs = (Job *)calloc(nJob + 1, sizeof(Job));
-    assert(cc->jobs);
-
-    for (int i = 1; i <= nPrn; ++i)
+    for (int i = 1; i <= nPrinters; ++i)
     {
         Printer *p = &cc->printer[i];
-        p->tskq = (Queue *)calloc(1, sizeof(Queue));
-        assert(p->tskq);
-        // p->tskq->size = nJob + 1;
-        p->tskq->front = p->tskq->rear = 0;
-        p->tskq->idx = (int *)calloc(nJob + 1, sizeof(int));
-        assert(p->tskq->idx);
+        p->task_que = (Queue *)calloc(1, sizeof(Queue));
+        assert(p->task_que);
+        p->task_que->front = p->task_que->rear = 0;
+        p->task_que->size = nJobs;
+        p->task_que->data = (Job *)calloc(nJobs + 1, sizeof(Job));
+        assert(p->task_que->data);
     }
+
+    cc->pq = pq_create(nJobs);
 
     return cc;
 }
@@ -198,113 +307,72 @@ void cc_destroy(CopyCenter *cc)
     for (int i = 1; i <= cc->nPrinters; ++i)
     {
         Printer *p = &cc->printer[i];
-        free(p->tskq->idx);
-        free(p->tskq);
+        free(p->task_que->data);
+        free(p->task_que);
     }
-    free(cc->arque);
+
     free(cc->printer);
-    free(cc->jobs);
     free(cc);
 }
 
 /**
- * @return 0: no jobs; >0: the arrival job index; <0: errors
+ * @brief get the expected-to-finish-earliest printer
+ * @return the printer id
  */
-int cc_setArrivJob(CopyCenter *cc, int tick)
+int cc_getEarliest(CopyCenter *cc, int tick)
 {
-    Job *jobs = cc->jobs;
-    Queue *arque = cc->arque;
-    int t = cc->nEnqeue + 1;
-
-    while (t <= cc->nJobs)
+    int retval = INT_MAX, val, retidx = -1;
+    for (int i = 1; i <= cc->nPrinters; ++i)
     {
-        printf("t=%d/%d\n", t, cc->nJobs);
-        if (jobs[t].arrivTime == tick)
+        Printer *p = &cc->printer[i];
+        val = p->rest_time + p->n_to_print_pages * p->speed;
+        if (val < retval)
         {
-            printf("Time %d: ARRIVE Job %d, pages=%d\n", tick, jobs[t].id, jobs[t].pages);
-            enque(arque, jobs[t].id);
-            cc->nEnqeue++;
+            retidx = i;
+            retval = val;
         }
-        else
+    }
+
+    return retidx;
+}
+
+void cc_process(CopyCenter *cc)
+{
+    const char etstr[][15] = {"", "COMPLELE", "OVERHEAT", "REST END", "ARRIVE", "REASSIGN", "ASSIGN", "START"};
+    Event e;
+    while (!pq_pop(cc->pq, &e))
+    {
+        int tick = e.arrivalTime;
+
+        switch (e.type)
         {
+        case EV_ARRIVE:
+            printf("Time %d: %s Job %d, pages=%d\n", tick, etstr[e.type], e.jobId, e.pages);
+            e.type = EV_ASSIGN;
+            pq_push(cc->pq, &e);
+            break;
+        case EV_ASSIGN:
+            e.printerId = cc_getEarliest(cc, tick);
+            Queue *q = cc->printer[e.printerId].task_que;
+            Job jb;
+            jb.arrivalTime = e.arrivalTime;
+            jb.id = e.jobId;
+            jb.pages = e.pages;
+            enque(q, &jb);
+            printer_set_to_print(&cc->printer[e.printerId]);
+            printf("Time %d: %s Job %d to Printer %d\n", tick, etstr[e.type], e.jobId, e.printerId);
+
+            break;
+        default:
             break;
         }
-
-        ++t;
     }
-
-    return 0;
-}
-
-int cmpArrivTime(const void *a, const void *b)
-{
-    Job *pa = (Job *)a,
-        *pb = (Job *)b;
-    if (pa->arrivTime == pb->arrivTime)
-    {
-        return (pa->id > pb->id);
-    }
-
-    return (pa->arrivTime > pb->arrivTime);
-}
-
-/**
- * @brief get the printer that is expected to finish the earliest
- * @return the printer number
- */
-int getFiEarliest(CopyCenter *p, int M)
-{
-    int idx = INT_MAX;
-    // LL finTime = LLONG_MAX;
-    // for (int i = 1; i <= M; ++i)
-    // {
-    //     LL remTime = p->pnt[i].remPages * p->pnt[i].speed + p->pnt[i].rest_time;
-    //     if (finTime > remTime)
-    //     {
-    //         finTime = remTime;
-    //         idx = i;
-    //     }
-    // }
-
-    return idx;
-}
-
-void step(CopyCenter *cc, int tick)
-{
-    // int front;
-    cc_setArrivJob(cc, tick);
-    // {
-    //     printf("Time %d: ARRIVE Job %d, pages=%d\n", tick, jque->job[front].id, jque->job[front].pages);
-    // }
-    // for (int i = 1; i <= n; ++i)
-    // {
-    //     int pnt = getFiEarliest(pdata, pdata->size);
-    //     int jobid = jque->job[++jque->front].id;
-    //     printf("Time %d: ASSIGN Job %d to Printer %d\n", tick, jobid, pnt);
-    //     enque(pdata->pnt, &jque->job[jque->front]);
-    // }
-}
-
-/**
- * @return 1 if all done; 0 otherwise
- */
-int cc_isDone(CopyCenter *cc)
-{
-    int sz = cc->nJobs;
-    for (int i = 1; i <= sz; ++i)
-    {
-        Status s = cc->jobs[i].status;
-        if (s != COMPLETE)
-            return 0;
-    }
-
-    return 1;
 }
 
 int main()
 {
     int M, // number of printers
-        N; // number of jobs
+        N; // number of job
     if (2 != scanf("%d %d", &M, &N))
     {
         fprintf(stderr, "Usage: M, N\n");
@@ -322,35 +390,19 @@ int main()
         p->speed = s;
         p->heat_limit = h;
         p->rest_time = r;
-        p->state = PS_IDLE;
     }
 
     for (int i = 1; i <= N; ++i)
     {
-        Job *j = &cc->jobs[i];
-        int a, p;
-        scanf("%d %d", &a, &p);
-        j->id = i;
-        j->arrivTime = a;
-        j->pages = p;
+        Event e;
+        e.jobId = i;
+        e.type = EV_ARRIVE;
+        scanf("%lld %d", &e.arrivalTime, &e.pages);
+        pq_push(cc->pq, &e);
     }
 
-    qsort(cc->jobs + 1, N, sizeof(Job), cmpArrivTime);
-    // for (int i = 1; i <= N; ++i)
-    // {
-    //     printf("%d: %d, %d\n", j->job[i].id, j->job[i].arrivTime, j->job[i].pages);
-    // }
-
-    int tick = 0;
-    while (!cc_isDone(cc))
-    {
-        step(cc, tick);
-        tick++;
-        if (tick > 3)
-            break;
-    }
-
-    printf("Finish time: %d", tick);
+    cc_process(cc);
+    printf("Finish arrivalTime: ");
 
     cc_destroy(cc);
 
