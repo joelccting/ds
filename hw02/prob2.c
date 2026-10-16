@@ -3,7 +3,12 @@
 #include <assert.h>
 #include <string.h>
 
+#define DEBUG
+#ifdef DEBUG
 #define dbg(x) printf x
+#else
+#define dbg(x)
+#endif
 
 typedef long long LL;
 
@@ -127,11 +132,11 @@ void heapifyDown(PriorityQueue *pq, int index)
 
 void pq_push(PriorityQueue *pq, Event *e)
 {
-    if (pq->size == pq->capacity)
-    {
-        pq->capacity *= 2;
-        pq->data = (Event *)realloc(pq->data, sizeof(Event) * pq->capacity);
-    }
+    // if (pq->size == pq->capacity)
+    // {
+    //     pq->capacity *= 2;
+    //     pq->data = (Event *)realloc(pq->data, sizeof(Event) * pq->capacity);
+    // }
 
     pq->data[pq->size] = *e;
     pq->size++;
@@ -223,30 +228,6 @@ int deque(Queue *que, Job *job)
     return 0;
 }
 
-int que_get_pages(Queue *que)
-{
-    int retval = 0;
-    if (isEmpty(que))
-        return retval;
-
-    int front = que->front = (que->front + 1) % que->size;
-    int rear = que->rear;
-    if (front <= rear)
-    {
-        for (int i = front; i <= rear; ++i)
-            retval += que->data[i].pages;
-    }
-    else
-    {
-        for (int i = front; i <= que->size; ++i)
-            retval += que->data[i].pages;
-        for (int i = 0; i <= rear; ++i)
-            retval += que->data[i].pages;
-    }
-
-    return retval;
-}
-
 typedef struct
 {
     int id;
@@ -258,9 +239,46 @@ typedef struct
     int n_to_print_pages;
 } Printer;
 
-void printer_set_to_print(Printer *p)
+int printer_get_pages(Printer *p, int tick, int *n_printed, int *n_to_print)
 {
-    p->n_to_print_pages = que_get_pages(p->task_que);
+    Queue *que = p->task_que;
+    int retval = 0;
+    if (isEmpty(que))
+        return 0;
+
+    int front = (que->front + 1) % que->size;
+    Job *j = &p->task_que->data[front];
+    *n_printed = (tick - j->arrivalTime) / p->speed;
+    retval += (j->pages - *n_printed);
+
+    front = (front + 1) % que->size;
+
+    int rear = que->rear;
+    if (front != rear)
+    {
+        if (front <= rear)
+        {
+            for (int i = front; i <= rear; ++i)
+                retval += que->data[i].pages;
+        }
+        else
+        {
+            for (int i = front; i <= que->size; ++i)
+                retval += que->data[i].pages;
+            for (int i = 0; i <= rear; ++i)
+                retval += que->data[i].pages;
+        }
+    }
+    *n_to_print = retval;
+    return 1;
+}
+
+void printer_set_pages(Printer *p, int tick)
+{
+    int n_printed, n_to_print;
+    printer_get_pages(p, tick, &n_printed, &n_to_print);
+    p->n_to_print_pages = n_to_print;
+    dbg(("id %d, printed %d, to print %d\n", p->id, n_printed, n_to_print));
 }
 
 typedef struct
@@ -304,6 +322,8 @@ void cc_destroy(CopyCenter *cc)
     if (!cc)
         return;
 
+    pq_destroy(cc->pq);
+
     for (int i = 1; i <= cc->nPrinters; ++i)
     {
         Printer *p = &cc->printer[i];
@@ -325,12 +345,14 @@ int cc_getEarliest(CopyCenter *cc, int tick)
     for (int i = 1; i <= cc->nPrinters; ++i)
     {
         Printer *p = &cc->printer[i];
-        val = p->rest_time + p->n_to_print_pages * p->speed;
+        val = tick + p->rest_time + p->n_to_print_pages * p->speed;
         if (val < retval)
         {
             retidx = i;
             retval = val;
         }
+
+        dbg(("printer %d: %d\n", i, val));
     }
 
     return retidx;
@@ -359,10 +381,21 @@ void cc_process(CopyCenter *cc)
             jb.id = e.jobId;
             jb.pages = e.pages;
             enque(q, &jb);
-            printer_set_to_print(&cc->printer[e.printerId]);
+            printer_set_pages(&cc->printer[e.printerId], tick);
             printf("Time %d: %s Job %d to Printer %d\n", tick, etstr[e.type], e.jobId, e.printerId);
-
+            e.type = EV_START;
+            pq_push(cc->pq, &e);
             break;
+        case EV_START:
+            printf("Time %d: %s Printer %d, Job %d, remaining pages=%d\n",
+                   tick, etstr[e.type], e.printerId, e.jobId, e.pages);
+            break;
+        case EV_COMPLETE:
+        case EV_OVERHEAT:
+        case EV_REST_END:
+
+        case EV_REASSIGN:
+
         default:
             break;
         }
