@@ -397,7 +397,7 @@ int cc_getEarliest(CopyCenter *cc, int printer_id, LL tick, int njpages, LL *ext
 
 LL cc_process(CopyCenter *cc)
 {
-    const char etstr[][15] = {"", "COMPLELE", "OVERHEAT", "REST END", "ARRIVE", "REASSIGN", "ASSIGN", "START"};
+    const char etstr[][15] = {"", "COMPLETE", "OVERHEAT", "REST END", "ARRIVE", "REASSIGN", "ASSIGN", "START"};
     Event e;
     LL time, tick = 0;
 
