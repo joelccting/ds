@@ -5,14 +5,23 @@
 
 #define DEBUG
 #ifdef DEBUG
-#define dbg(x) printf x
+#define dbg(x)                     \
+    do                             \
+    {                              \
+        printf("[%d] ", __LINE__); \
+        printf x;                  \
+    } while (0)
+
 #else
 #define dbg(x)
 #endif
 
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
 typedef long long LL;
 
-typedef enum
+typedef enum event_type
 {
     EV_COMPLETE = 1,
     EV_OVERHEAT,
@@ -23,21 +32,20 @@ typedef enum
     EV_START
 } EventType;
 
-typedef struct
+typedef struct event
 {
     EventType type;
-    int printerId;
-    int srcPrinterId;
-
-    int jobId;
-    LL arrivalTime;
+    int printer_id;
+    int src_printer_id;
+    int job_id;
+    LL arrival_time;
     int pages;
 } Event;
 
 int is_higher_priority(Event *a, Event *b)
 {
-    if (a->arrivalTime != b->arrivalTime)
-        return a->arrivalTime < b->arrivalTime;
+    if (a->arrival_time != b->arrival_time)
+        return a->arrival_time < b->arrival_time;
 
     if (a->type != b->type)
         return a->type < b->type;
@@ -48,21 +56,21 @@ int is_higher_priority(Event *a, Event *b)
     case EV_OVERHEAT:
     case EV_REST_END:
     case EV_START:
-        return a->printerId < b->printerId;
+        return a->printer_id < b->printer_id;
 
     case EV_ARRIVE:
     case EV_ASSIGN:
-        return a->jobId < b->jobId;
+        return a->job_id < b->job_id;
 
     case EV_REASSIGN:
-        if (a->srcPrinterId != b->srcPrinterId)
-            return a->srcPrinterId < b->srcPrinterId;
-        return a->jobId < b->jobId;
+        if (a->src_printer_id != b->src_printer_id)
+            return a->src_printer_id < b->src_printer_id;
+        return a->job_id < b->job_id;
     }
     return 0;
 }
 
-typedef struct
+typedef struct priority_queue
 {
     Event *data;
     int capacity;
@@ -169,14 +177,14 @@ int pq_pop(PriorityQueue *pq, Event *e)
     return 0;
 }
 
-typedef struct
+typedef struct job
 {
     int id;
-    int arrivalTime;
+    LL arrival_time;
     int pages;
 } Job;
 
-typedef struct
+typedef struct queue
 {
     int front;
     int rear;
@@ -188,7 +196,7 @@ int isEmpty(Queue *que)
 {
     if (que->front == que->rear)
     {
-        dbg(("ERROR: is empty!\n"));
+        // dbg(("is empty!\n"));
         return 1;
     }
 
@@ -201,7 +209,7 @@ int isFull(Queue *que)
     int rear = (que->rear + 1) % que->size;
     if (que->front == rear)
     {
-        dbg(("ERROR: is full!\n"));
+        // dbg(("is full!\n"));
         return 1;
     }
 
@@ -218,90 +226,109 @@ int enque(Queue *que, Job *data)
     return 0;
 }
 
+int gettop(Queue *que, Job *job)
+{
+    if (isEmpty(que))
+        return -1;
+    int front = (que->front + 1) % que->size;
+    if (job)
+        *job = que->data[front];
+    return 0;
+}
+
 int deque(Queue *que, Job *job)
 {
     if (isEmpty(que))
         return -1;
 
     que->front = (que->front + 1) % que->size;
-    *job = que->data[que->front];
+    if (job)
+        *job = que->data[que->front];
     return 0;
 }
 
-typedef struct
+typedef enum printer_state
+{
+    PS_IDLE = 0,
+    PS_BUSY,
+    PS_RESTING
+} PrinterState;
+
+typedef struct printer
 {
     int id;
     int speed;      // required time per page
     int heat_limit; // max number of consecutively printing pages before overheating
-    int rest_time;  // required rest arrivalTime
+    int rest_time;  // required rest arrival_time
     int n_tasks;
     Queue *task_que; // task_que queue
-    int n_to_print_pages;
+    int n_remaining_pages;
+    PrinterState state;
+    LL rest_end_time;
+    int consecutive_printed_pages;
+    LL current_job_start_time;
 } Printer;
 
-int printer_get_pages(Printer *p, int tick, int *n_printed, int *n_to_print)
+void printer_add_job(Printer *p, Job *j)
 {
-    Queue *que = p->task_que;
-    int retval = 0;
-    if (isEmpty(que))
-        return 0;
+    Queue *q = p->task_que;
 
-    int front = (que->front + 1) % que->size;
-    Job *j = &p->task_que->data[front];
-    *n_printed = (tick - j->arrivalTime) / p->speed;
-    retval += (j->pages - *n_printed);
+    enque(q, j);
+    p->n_remaining_pages += j->pages;
+    p->state = PS_BUSY;
+}
 
-    front = (front + 1) % que->size;
-
-    int rear = que->rear;
-    if (front != rear)
+LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
+{
+    PrinterState ps = p->state;
+    LL val;
+    switch (ps)
     {
-        if (front <= rear)
-        {
-            for (int i = front; i <= rear; ++i)
-                retval += que->data[i].pages;
-        }
-        else
-        {
-            for (int i = front; i <= que->size; ++i)
-                retval += que->data[i].pages;
-            for (int i = 0; i <= rear; ++i)
-                retval += que->data[i].pages;
-        }
+    case PS_RESTING:
+        p->rest_end_time = MAX(p->rest_end_time - tick, 0LL);
+        val = p->rest_end_time + (p->n_remaining_pages + new_job_pages) * p->speed;
+        break;
+    case PS_BUSY:
+        val = tick + (p->n_remaining_pages + new_job_pages) * p->speed;
+        break;
+    case PS_IDLE:
+    default:
+        val = tick + new_job_pages * p->speed;
+        // dbg(("tick %lld, new job pages %d, speed %d\n", tick, new_job_pages, p->speed));
+        break;
     }
-    *n_to_print = retval;
-    return 1;
+
+    return val;
 }
 
-void printer_set_pages(Printer *p, int tick)
+PrinterState printer_get_state(Printer *p)
 {
-    int n_printed, n_to_print;
-    printer_get_pages(p, tick, &n_printed, &n_to_print);
-    p->n_to_print_pages = n_to_print;
-    dbg(("id %d, printed %d, to print %d\n", p->id, n_printed, n_to_print));
+    return p->state;
 }
 
-typedef struct
+typedef struct copy_center
 {
     Printer *printer;
-    int nPrinters;
-
+    int n_printers;
+    int n_jobs;
+    int n_completed_jobs;
     PriorityQueue *pq;
 } CopyCenter;
 
 /**
- * @param[in] nPrinters: number of printers
+ * @param[in] n_printers: number of printers
  * @param[in] nJobs: number of job
  */
-CopyCenter *cc_create(int nPrinters, int nJobs)
+CopyCenter *cc_create(int n_printers, int nJobs)
 {
     CopyCenter *cc = NULL;
     cc = (CopyCenter *)calloc(1, sizeof(CopyCenter));
     assert(cc);
-    cc->nPrinters = nPrinters;
-    cc->printer = (Printer *)calloc(nPrinters + 1, sizeof(Printer));
+    cc->n_printers = n_printers;
+    cc->n_jobs = nJobs;
+    cc->printer = (Printer *)calloc(n_printers + 1, sizeof(Printer));
     assert(cc->printer);
-    for (int i = 1; i <= nPrinters; ++i)
+    for (int i = 1; i <= n_printers; ++i)
     {
         Printer *p = &cc->printer[i];
         p->task_que = (Queue *)calloc(1, sizeof(Queue));
@@ -324,7 +351,7 @@ void cc_destroy(CopyCenter *cc)
 
     pq_destroy(cc->pq);
 
-    for (int i = 1; i <= cc->nPrinters; ++i)
+    for (int i = 1; i <= cc->n_printers; ++i)
     {
         Printer *p = &cc->printer[i];
         free(p->task_que->data);
@@ -337,69 +364,191 @@ void cc_destroy(CopyCenter *cc)
 
 /**
  * @brief get the expected-to-finish-earliest printer
+ * @param[in] printer_id the current printer id. 0 if all printers need to be evaluated.
+ * @param[in] njpages new-job pages
  * @return the printer id
+ * @return extime time to finish new-job pages
  */
-int cc_getEarliest(CopyCenter *cc, int tick)
+int cc_getEarliest(CopyCenter *cc, int printer_id, LL tick, int njpages, LL *extime)
 {
-    int retval = INT_MAX, val, retidx = -1;
-    for (int i = 1; i <= cc->nPrinters; ++i)
+    LL retval = LLONG_MAX, // target end time
+        val;
+    int retidx = -1;
+    for (int i = 1; i <= cc->n_printers; ++i)
     {
+        if (printer_id > 0 && i == printer_id)
+            continue;
+
         Printer *p = &cc->printer[i];
-        val = tick + p->rest_time + p->n_to_print_pages * p->speed;
+        val = printer_get_end_time(p, tick, njpages);
+
+        // dbg(("Printer %d: target time %lld\n", i, val));
+
         if (val < retval)
         {
             retidx = i;
             retval = val;
         }
-
-        dbg(("printer %d: %d\n", i, val));
     }
-
+    if (extime)
+        *extime = retval;
     return retidx;
 }
 
-void cc_process(CopyCenter *cc)
+LL cc_process(CopyCenter *cc)
 {
     const char etstr[][15] = {"", "COMPLELE", "OVERHEAT", "REST END", "ARRIVE", "REASSIGN", "ASSIGN", "START"};
     Event e;
-    while (!pq_pop(cc->pq, &e))
+    LL time, tick = 0;
+
+    while (!pq_pop(cc->pq, &e) && cc->n_completed_jobs < cc->n_jobs)
     {
-        int tick = e.arrivalTime;
+        tick = e.arrival_time;
+        Printer *p = NULL;
+        Queue *q = NULL;
 
         switch (e.type)
         {
         case EV_ARRIVE:
-            printf("Time %d: %s Job %d, pages=%d\n", tick, etstr[e.type], e.jobId, e.pages);
+            printf("Time %lld: %s Job %d, pages=%d\n", tick, etstr[e.type], e.job_id, e.pages);
             e.type = EV_ASSIGN;
             pq_push(cc->pq, &e);
             break;
+
         case EV_ASSIGN:
-            e.printerId = cc_getEarliest(cc, tick);
-            Queue *q = cc->printer[e.printerId].task_que;
+            e.printer_id = cc_getEarliest(cc, 0, tick, e.pages, &time);
+            p = &cc->printer[e.printer_id];
+            printf("Time %lld: %s Job %d to Printer %d\n", tick, etstr[e.type], e.job_id, e.printer_id);
+            // dbg(("complete time: %lld\n", time));
             Job jb;
-            jb.arrivalTime = e.arrivalTime;
-            jb.id = e.jobId;
+            jb.arrival_time = e.arrival_time + time;
+            jb.id = e.job_id;
             jb.pages = e.pages;
-            enque(q, &jb);
-            printer_set_pages(&cc->printer[e.printerId], tick);
-            printf("Time %d: %s Job %d to Printer %d\n", tick, etstr[e.type], e.jobId, e.printerId);
+            if (p->state == PS_IDLE)
+            {
+                e.type = EV_START;
+                pq_push(cc->pq, &e);
+            }
+
+            printer_add_job(p, &jb);
+            break;
+
+        case EV_START:
+            p = &cc->printer[e.printer_id];
+            printf("Time %lld: %s Printer %d, Job %d, remaining pages=%d\n",
+                   tick, etstr[e.type], e.printer_id, e.job_id, e.pages);
+            int rempages = p->heat_limit - p->consecutive_printed_pages;
+            if (e.pages <= rempages)
+            {
+                e.arrival_time = tick + e.pages * p->speed;
+                e.type = EV_COMPLETE;
+                p->consecutive_printed_pages += e.pages;
+                p->state = PS_BUSY;
+            }
+            else
+            {
+                e.pages -= rempages;
+                e.arrival_time = tick + rempages * p->speed;
+                e.type = EV_OVERHEAT;
+                p->consecutive_printed_pages += rempages;
+            }
+            pq_push(cc->pq, &e);
+            break;
+
+        case EV_COMPLETE:
+            cc->n_completed_jobs++;
+            printf("Time %lld: %s Job %d in Printer %d\n",
+                   tick, etstr[e.type], e.job_id, e.printer_id);
+            p = &cc->printer[e.printer_id];
+            q = p->task_que;
+            Job b;
+            deque(q, &b);
+            p->n_remaining_pages -= b.pages;
+            if (0 == gettop(q, &b))
+            {
+                e.arrival_time = tick;
+                e.job_id = b.id;
+                e.pages = b.pages;
+                e.type = EV_START;
+                pq_push(cc->pq, &e);
+            }
+            else
+            {
+                p->state = PS_IDLE;
+                if (p->heat_limit == p->consecutive_printed_pages)
+                {
+                    p->rest_end_time = tick + p->rest_time;
+                    e.arrival_time = tick;
+                    e.type = EV_OVERHEAT;
+                    pq_push(cc->pq, &e);
+                }
+            }
+            break;
+
+        case EV_OVERHEAT:
+            p = &cc->printer[e.printer_id];
+            p->rest_end_time = tick + p->rest_time;
+            p->state = PS_RESTING;
+            printf("Time %lld: %s Printer %d, Restart time=%lld\n",
+                   tick, etstr[e.type], e.printer_id, p->rest_end_time);
+            e.arrival_time = p->rest_end_time;
+            e.type = EV_REST_END;
+            pq_push(cc->pq, &e);
+
+            q = p->task_que;
+            if (0 == gettop(q, &b))
+            {
+                if (b.pages > p->heat_limit)
+                {
+                    e.arrival_time = tick;
+                    e.type = EV_REASSIGN;
+                    e.job_id = b.id;
+                    e.pages = b.pages - p->heat_limit;
+                    e.src_printer_id = p->id;
+                    pq_push(cc->pq, &e);
+                    deque(q, NULL);
+                }
+            }
+
+            break;
+
+        case EV_REST_END:
+            printf("Time %lld: %s Printer %d\n",
+                   tick, etstr[e.type], e.printer_id);
+            p = &cc->printer[e.printer_id];
+            p->consecutive_printed_pages = 0;
+            q = p->task_que;
+            Job j;
+            if (-1 != gettop(q, &j))
+            {
+                e.arrival_time = tick;
+                e.job_id = j.id;
+                e.pages = j.pages;
+                e.type = EV_START;
+                pq_push(cc->pq, &e);
+                p->state = PS_BUSY;
+            }
+            else
+            {
+                p->state = PS_IDLE;
+            }
+            break;
+
+        case EV_REASSIGN:
+            e.printer_id = cc_getEarliest(cc, e.printer_id, tick, e.pages, &time);
+            printf("Time %lld: %s Job %d, remaining pages=%d, from Printer %d to Printer %d\n",
+                   tick, etstr[e.type], e.job_id, e.pages, e.src_printer_id, e.printer_id);
             e.type = EV_START;
             pq_push(cc->pq, &e);
             break;
-        case EV_START:
-            printf("Time %d: %s Printer %d, Job %d, remaining pages=%d\n",
-                   tick, etstr[e.type], e.printerId, e.jobId, e.pages);
-            break;
-        case EV_COMPLETE:
-        case EV_OVERHEAT:
-        case EV_REST_END:
-
-        case EV_REASSIGN:
 
         default:
+            fprintf(stderr, "Unknown state: %d\n", e.type);
             break;
         }
     }
+
+    return tick;
 }
 
 int main()
@@ -428,14 +577,13 @@ int main()
     for (int i = 1; i <= N; ++i)
     {
         Event e;
-        e.jobId = i;
+        e.job_id = i;
         e.type = EV_ARRIVE;
-        scanf("%lld %d", &e.arrivalTime, &e.pages);
+        scanf("%lld %d", &e.arrival_time, &e.pages);
         pq_push(cc->pq, &e);
     }
 
-    cc_process(cc);
-    printf("Finish arrivalTime: ");
+    printf("Finish time: %lld", cc_process(cc));
 
     cc_destroy(cc);
 
