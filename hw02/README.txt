@@ -10,4 +10,4 @@ Other issues: None
 
 PowerShell
 > Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-> Get-Content q1.smp.in | & prob1.exe
+> Get-Content q1.smp.in | & prob1.exe | Out-File -FilePath q2smp.out -Encoding ascii

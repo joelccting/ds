@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <string.h>
 
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
 #define dbg(x)                     \
     do                             \
@@ -11,7 +11,6 @@
         printf("[%d] ", __LINE__); \
         printf x;                  \
     } while (0)
-
 #else
 #define dbg(x)
 #endif
@@ -196,7 +195,7 @@ int isEmpty(Queue *que)
 {
     if (que->front == que->rear)
     {
-        // dbg(("is empty!\n"));
+        dbg(("is empty!\n"));
         return 1;
     }
 
@@ -209,7 +208,7 @@ int isFull(Queue *que)
     int rear = (que->rear + 1) % que->size;
     if (que->front == rear)
     {
-        // dbg(("is full!\n"));
+        dbg(("is full!\n"));
         return 1;
     }
 
@@ -294,7 +293,7 @@ LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
     case PS_IDLE:
     default:
         val = tick + new_job_pages * p->speed;
-        // dbg(("tick %lld, new job pages %d, speed %d\n", tick, new_job_pages, p->speed));
+        dbg(("tick %lld, new job pages %d, speed %d\n", tick, new_job_pages, p->speed));
         break;
     }
 
@@ -382,7 +381,7 @@ int cc_getEarliest(CopyCenter *cc, int printer_id, LL tick, int njpages, LL *ext
         Printer *p = &cc->printer[i];
         val = printer_get_end_time(p, tick, njpages);
 
-        // dbg(("Printer %d: target time %lld\n", i, val));
+        dbg(("Printer %d: target time %lld\n", i, val));
 
         if (val < retval)
         {
@@ -419,7 +418,7 @@ LL cc_process(CopyCenter *cc)
             e.printer_id = cc_getEarliest(cc, 0, tick, e.pages, &time);
             p = &cc->printer[e.printer_id];
             printf("Time %lld: %s Job %d to Printer %d\n", tick, etstr[e.type], e.job_id, e.printer_id);
-            // dbg(("complete time: %lld\n", time));
+            dbg(("complete time: %lld\n", time));
             Job jb;
             jb.arrival_time = e.arrival_time + time;
             jb.id = e.job_id;
