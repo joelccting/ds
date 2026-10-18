@@ -644,16 +644,11 @@ LL cc_sim(CopyCenter *cc)
             int rempages = p->heat_limit - p->consecutive_printed_pages;
             if (e.n_pages <= rempages) /* can consecutively print without overheat */
             {
-                // e.arrival_time = tick + e.n_pages * p->speed;
-                // e.type = EV_COMPLETE;
                 event_set(&ne, EV_COMPLETE, e.printer_id, e.src_printer_id, e.job_id, tick + e.n_pages * p->speed, e.n_pages);
                 p->consecutive_printed_pages += e.n_pages;
             }
             else
             {
-                // e.n_pages -= rempages;
-                // e.arrival_time = tick + rempages * p->speed;
-                // e.type = EV_OVERHEAT;
                 event_set(&ne, EV_OVERHEAT, e.printer_id, e.src_printer_id, e.job_id, tick + rempages * p->speed, e.n_pages - rempages);
                 p->consecutive_printed_pages += rempages;
             }
@@ -677,9 +672,6 @@ LL cc_sim(CopyCenter *cc)
             {
                 p->rest_end_time = tick + p->rest_time;
                 dbg(("printer %d idle, overheat, restart time=%lld\n", p->id, p->rest_end_time));
-                // p->rest_end_time = tick + p->rest_time;
-                // e.arrival_time = tick;
-                // e.type = EV_OVERHEAT;
                 event_set(&ne, EV_OVERHEAT, e.printer_id, e.src_printer_id, e.job_id, tick, 0);
                 pq_push(cc->pq, &ne);
                 break;
@@ -689,19 +681,11 @@ LL cc_sim(CopyCenter *cc)
             // p->n_remaining_pages -= job.n_pages;
             if (0 == gettop(q, &job)) // Current printer's queue is not empty
             {
-                // e.arrival_time = tick;
-                // e.job_id = job.id;
-                // e.n_pages = job.n_pages;
-                // e.type = EV_START;
-
                 event_set(&ne, EV_START, e.printer_id, e.src_printer_id, job.id, tick, job.n_pages);
                 pq_push(cc->pq, &ne);
             }
             else
             {
-                // p->state = PS_IDLE;
-                // p->consecutive_printed_pages = 0;
-                // printer_set_state(p, PS_IDLE);
                 printer_set_state(p, PS_IDLE);
             }
             break;
@@ -739,10 +723,6 @@ LL cc_sim(CopyCenter *cc)
 
             if (!gettop(q, &job)) // Que is not empty
             {
-                // e.arrival_time = tick;
-                // e.job_id = job.id;
-                // e.n_pages = job.n_pages;
-                // e.type = EV_START;
                 event_set(&ne, EV_START, e.printer_id, e.src_printer_id, job.id, tick, job.n_pages);
                 pq_push(cc->pq, &ne);
                 printer_set_state(p, PS_BUSY);
@@ -766,10 +746,6 @@ LL cc_sim(CopyCenter *cc)
             q = p->task_que;
             printf("Time %lld: %s Job %d, remaining pages=%d, from Printer %d to Printer %d\n",
                    tick, etstr[e.type], e.job_id, e.n_pages, e.src_printer_id, new_printer_id);
-
-            // job.arrival_time = time;
-            // job.id = e.job_id;
-            // job.n_pages = e.n_pages;
             job_set(&job, e.job_id, tick, e.n_pages);
             old_state = printer_get_state(p);
             printer_add_job(p, &job);
@@ -821,8 +797,6 @@ int main()
         int n_pages;
         scanf("%lld %d", &arrival_time, &n_pages);
         Event e;
-        // e.job_id = i;
-        // e.type = EV_ARRIVE;
         event_set(&e, EV_ARRIVE, 0, 0, i, arrival_time, n_pages);
         pq_push(cc->pq, &e);
     }
