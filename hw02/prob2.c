@@ -3,17 +3,24 @@
 #include <assert.h>
 #include <string.h>
 
-//#define DEBUG
+// #define DEBUG
 #ifdef DEBUG
-#define dbg(x)                     \
-    do                             \
-    {                              \
-        printf("[%d] ", __LINE__); \
-        printf x;                  \
+#define dbg(x)                      \
+    do                              \
+    {                               \
+        printf("D(%d) ", __LINE__); \
+        printf x;                   \
     } while (0)
 #else
 #define dbg(x)
 #endif
+
+#define err(x)                      \
+    do                              \
+    {                               \
+        printf("E(%d) ", __LINE__); \
+        printf x;                   \
+    } while (0)
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -38,11 +45,34 @@ typedef struct event
     int src_printer_id;
     int job_id;
     LL arrival_time;
-    int pages;
+    int n_pages;
 } Event;
 
-int is_higher_priority(Event *a, Event *b)
+int event_set(Event *e, EventType type, int printer_id, int src_printer_id, int job_id, LL arrival_time, int n_pages)
 {
+    if (!e)
+    {
+        err(("Null\n"));
+        return -1;
+    }
+    e->arrival_time = arrival_time;
+    e->job_id = job_id;
+    e->n_pages = n_pages;
+    e->printer_id = printer_id;
+    e->src_printer_id = src_printer_id;
+    e->type = type;
+
+    return 0;
+}
+
+int _is_higher_priority(Event *a, Event *b)
+{
+    if (!a || !b)
+    {
+        err(("Found null pointer\n"));
+        return -1;
+    }
+
     if (a->arrival_time != b->arrival_time)
         return a->arrival_time < b->arrival_time;
 
@@ -78,7 +108,8 @@ typedef struct priority_queue
 
 PriorityQueue *pq_create(int capacity)
 {
-    PriorityQueue *pq = (PriorityQueue *)calloc(1, sizeof(PriorityQueue));
+    PriorityQueue *pq = NULL;
+    pq = (PriorityQueue *)calloc(1, sizeof(PriorityQueue));
     assert(pq);
     pq->capacity = capacity;
     pq->data = (Event *)calloc(capacity, sizeof(Event));
@@ -89,89 +120,141 @@ PriorityQueue *pq_create(int capacity)
 void pq_destroy(PriorityQueue *pq)
 {
     if (!pq)
+    {
+        err(("Found null pointer\n"));
         return;
+    }
 
     free(pq->data);
     free(pq);
 }
 
-void swap(Event *a, Event *b)
+void _swap(Event *a, Event *b)
 {
-    Event t;
+    if (!a || !b)
+    {
+        err(("Found null pointer\n"));
+        return;
+    }
 
+    Event t;
     t = *a;
     *a = *b;
     *b = t;
 }
 
-void heapifyUp(PriorityQueue *pq, int index)
+void _heapifyUp(PriorityQueue *pq, int index)
 {
-    int parent = (index - 1) / 2;
-    while (index > 0 && is_higher_priority(pq->data + index, pq->data + parent))
+    if (!pq)
     {
-        swap(&pq->data[index], &pq->data[parent]);
+        err(("Found null pointer\n"));
+        return;
+    }
+
+    int parent = (index - 1) / 2;
+    while (index > 0 && _is_higher_priority(pq->data + index, pq->data + parent))
+    {
+        _swap(&pq->data[index], &pq->data[parent]);
         index = parent;
         parent = (index - 1) / 2;
     }
 }
 
-void heapifyDown(PriorityQueue *pq, int index)
+void _heapifyDown(PriorityQueue *pq, int index)
 {
+    if (!pq)
+    {
+        err(("Found null pointer\n"));
+        return;
+    }
+
     int smallest = index;
     int left = 2 * index + 1;
     int right = 2 * index + 2;
 
-    if (left < pq->size && is_higher_priority(pq->data + left, pq->data + smallest))
+    if (left < pq->size && _is_higher_priority(pq->data + left, pq->data + smallest))
     {
         smallest = left;
     }
-    if (right < pq->size && is_higher_priority(pq->data + right, pq->data + smallest))
+    if (right < pq->size && _is_higher_priority(pq->data + right, pq->data + smallest))
     {
         smallest = right;
     }
 
     if (smallest != index)
     {
-        swap(&pq->data[index], &pq->data[smallest]);
-        heapifyDown(pq, smallest);
+        _swap(&pq->data[index], &pq->data[smallest]);
+        _heapifyDown(pq, smallest);
     }
 }
 
-void pq_push(PriorityQueue *pq, Event *e)
+int pq_push(PriorityQueue *pq, Event *e)
 {
-    // if (pq->size == pq->capacity)
-    // {
-    //     pq->capacity *= 2;
-    //     pq->data = (Event *)realloc(pq->data, sizeof(Event) * pq->capacity);
-    // }
+    if (!pq)
+    {
+        err(("Found null pointer\n"));
+        return -1;
+    }
 
-    pq->data[pq->size] = *e;
-    pq->size++;
-    heapifyUp(pq, pq->size - 1);
+    if (pq->size == pq->capacity)
+    {
+        //     pq->capacity *= 2;
+        //     pq->data = (Event *)realloc(pq->data, sizeof(Event) * pq->capacity);
+        err(("Pque full\n"));
+        return 1;
+    }
+
+    if (e)
+    {
+        pq->data[pq->size] = *e;
+        pq->size++;
+        _heapifyUp(pq, pq->size - 1);
+    }
+
+    return 0;
 }
 
 int pq_top(PriorityQueue *pq, Event *e)
 {
-    if (pq->size == 0)
+    if (!pq)
     {
+        err(("Found null pointer\n"));
         return -1;
     }
 
-    *e = pq->data[0];
+    if (pq->size == 0)
+    {
+        dbg(("Pque empty\n"));
+        return 1;
+    }
+
+    if (e)
+        *e = pq->data[0];
+
     return 0;
 }
 
 int pq_pop(PriorityQueue *pq, Event *e)
 {
-    if (pq->size == 0)
+    if (!pq)
     {
+        err(("Found null pointer\n"));
         return -1;
     }
 
-    *e = pq->data[0];
-    pq->data[0] = pq->data[pq->size - 1];
-    pq->size--;
-    heapifyDown(pq, 0);
+    if (pq->size == 0)
+    {
+        dbg(("Pque empty\n"));
+        return 1;
+    }
+
+    if (e)
+    {
+        *e = pq->data[0];
+        pq->data[0] = pq->data[pq->size - 1];
+        pq->size--;
+        _heapifyDown(pq, 0);
+    }
 
     return 0;
 }
@@ -180,8 +263,18 @@ typedef struct job
 {
     int id;
     LL arrival_time;
-    int pages;
+    int n_pages;
 } Job;
+
+void job_set(Job *j, int id, LL arrival_time, int n_pages)
+{
+    if (!j)
+        return;
+
+    j->id = id;
+    j->arrival_time = arrival_time;
+    j->n_pages = n_pages;
+}
 
 typedef struct queue
 {
@@ -193,6 +286,12 @@ typedef struct queue
 
 int isEmpty(Queue *que)
 {
+    if (!que)
+    {
+        err(("Found null pointer\n"));
+        return -1;
+    }
+
     if (que->front == que->rear)
     {
         dbg(("is empty!\n"));
@@ -204,6 +303,11 @@ int isEmpty(Queue *que)
 
 int isFull(Queue *que)
 {
+    if (!que)
+    {
+        err(("Found null pointer\n"));
+        return -1;
+    }
 
     int rear = (que->rear + 1) % que->size;
     if (que->front == rear)
@@ -217,32 +321,70 @@ int isFull(Queue *que)
 
 int enque(Queue *que, Job *data)
 {
-    if (isFull(que))
+    if (!que)
+    {
+        err(("Found null pointer\n"));
         return -1;
+    }
 
-    que->rear = (que->rear + 1) % que->size;
-    que->data[que->rear] = *data;
+    if (isFull(que))
+    {
+        dbg(("Que is full\n"));
+        return 1;
+    }
+
+    if (data)
+    {
+        que->rear = (que->rear + 1) % que->size;
+        que->data[que->rear] = *data;
+    }
+
     return 0;
 }
 
+/**
+ * @return 0 if success; otherwise if failure
+ */
 int gettop(Queue *que, Job *job)
 {
-    if (isEmpty(que))
+    if (!que)
+    {
+        err(("Found null pointer\n"));
         return -1;
+    }
+
+    if (isEmpty(que))
+    {
+        dbg(("Que is empty\n"));
+        return 1;
+    }
+
     int front = (que->front + 1) % que->size;
     if (job)
         *job = que->data[front];
+
     return 0;
 }
 
 int deque(Queue *que, Job *job)
 {
-    if (isEmpty(que))
+    if (!que)
+    {
+        err(("Found null pointer\n"));
         return -1;
+    }
 
-    que->front = (que->front + 1) % que->size;
+    if (isEmpty(que))
+    {
+        dbg(("Que is empty\n"));
+        return 1;
+    }
     if (job)
+    {
+        que->front = (que->front + 1) % que->size;
         *job = que->data[que->front];
+    }
+
     return 0;
 }
 
@@ -270,11 +412,16 @@ typedef struct printer
 
 void printer_add_job(Printer *p, Job *j)
 {
+    if (!p || !j)
+    {
+        err(("Found null pointer\n"));
+        return;
+    }
+
     Queue *q = p->task_que;
 
     enque(q, j);
-    p->n_remaining_pages += j->pages;
-    p->state = PS_BUSY;
+    p->n_remaining_pages += j->n_pages;
 }
 
 LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
@@ -284,11 +431,13 @@ LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
     switch (ps)
     {
     case PS_RESTING:
-        p->rest_end_time = MAX(p->rest_end_time - tick, 0LL);
-        val = p->rest_end_time + (p->n_remaining_pages + new_job_pages) * p->speed;
+        LL rest_end_time = MAX(p->rest_end_time - tick, 0LL);
+        val = tick + rest_end_time + (p->n_remaining_pages + new_job_pages) * p->speed;
         break;
     case PS_BUSY:
-        val = tick + (p->n_remaining_pages + new_job_pages) * p->speed;
+        int printed_pages = (tick - p->current_job_start_time) / p->speed;
+        int remaining_pages = p->n_remaining_pages - printed_pages;
+        val = tick + (remaining_pages + new_job_pages) * p->speed;
         break;
     case PS_IDLE:
     default:
@@ -300,9 +449,17 @@ LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
     return val;
 }
 
-PrinterState printer_get_state(Printer *p)
+void printer_set_state(Printer *p, PrinterState ps)
 {
-    return p->state;
+    if (!p)
+        return;
+
+    p->state = ps;
+
+    if (PS_IDLE == ps || PS_RESTING == ps)
+    {
+        p->consecutive_printed_pages = 0;
+    }
 }
 
 typedef struct copy_center
@@ -316,16 +473,16 @@ typedef struct copy_center
 
 /**
  * @param[in] n_printers: number of printers
- * @param[in] nJobs: number of job
+ * @param[in] n_jobs: number of job
  */
-CopyCenter *cc_create(int n_printers, int nJobs)
+CopyCenter *cc_create(int n_printers, int n_jobs)
 {
     CopyCenter *cc = NULL;
     cc = (CopyCenter *)calloc(1, sizeof(CopyCenter));
     assert(cc);
     cc->n_printers = n_printers;
-    cc->n_jobs = nJobs;
-    cc->printer = (Printer *)calloc(n_printers + 1, sizeof(Printer));
+    cc->n_jobs = n_jobs;
+    cc->printer = (Printer *)calloc(n_printers + 5, sizeof(Printer));
     assert(cc->printer);
     for (int i = 1; i <= n_printers; ++i)
     {
@@ -333,12 +490,12 @@ CopyCenter *cc_create(int n_printers, int nJobs)
         p->task_que = (Queue *)calloc(1, sizeof(Queue));
         assert(p->task_que);
         p->task_que->front = p->task_que->rear = 0;
-        p->task_que->size = nJobs;
-        p->task_que->data = (Job *)calloc(nJobs + 1, sizeof(Job));
+        p->task_que->size = n_jobs;
+        p->task_que->data = (Job *)calloc(n_jobs + 5, sizeof(Job));
         assert(p->task_que->data);
     }
 
-    cc->pq = pq_create(nJobs);
+    cc->pq = pq_create(n_jobs + 5);
 
     return cc;
 }
@@ -366,10 +523,15 @@ void cc_destroy(CopyCenter *cc)
  * @param[in] printer_id the current printer id. 0 if all printers need to be evaluated.
  * @param[in] njpages new-job pages
  * @return the printer id
- * @return extime time to finish new-job pages
+ * @return fin_tick tick to finish new-job pages
  */
-int cc_getEarliest(CopyCenter *cc, int printer_id, LL tick, int njpages, LL *extime)
+int cc_get_earliest_printer(CopyCenter *cc, int printer_id, LL tick, int njpages, LL *fin_tick)
 {
+    if (!cc)
+    {
+        err(("\n"));
+        return -1;
+    }
     LL retval = LLONG_MAX, // target end time
         val;
     int retidx = -1;
@@ -389,156 +551,198 @@ int cc_getEarliest(CopyCenter *cc, int printer_id, LL tick, int njpages, LL *ext
             retval = val;
         }
     }
-    if (extime)
-        *extime = retval;
+
+    if (fin_tick)
+        *fin_tick = retval;
+
     return retidx;
 }
 
-LL cc_process(CopyCenter *cc)
+LL cc_sim(CopyCenter *cc)
 {
     const char etstr[][15] = {"", "COMPLETE", "OVERHEAT", "REST END", "ARRIVE", "REASSIGN", "ASSIGN", "START"};
-    Event e;
+    Event e, ne;
     LL time, tick = 0;
+
+    if (!cc)
+    {
+        err(("Null pointer\n"));
+        return -1LL;
+    }
 
     while (!pq_pop(cc->pq, &e) && cc->n_completed_jobs < cc->n_jobs)
     {
         tick = e.arrival_time;
         Printer *p = NULL;
         Queue *q = NULL;
+        Job job;
+        int new_printer_id;
 
         switch (e.type)
         {
         case EV_ARRIVE:
-            printf("Time %lld: %s Job %d, pages=%d\n", tick, etstr[e.type], e.job_id, e.pages);
-            e.type = EV_ASSIGN;
-            pq_push(cc->pq, &e);
+            printf("Time %lld: %s Job %d, pages=%d\n", tick, etstr[e.type], e.job_id, e.n_pages);
+            // e.type = EV_ASSIGN;
+            event_set(&ne, EV_ASSIGN, e.printer_id, e.src_printer_id, e.job_id, e.arrival_time, e.n_pages);
+            pq_push(cc->pq, &ne);
             break;
 
         case EV_ASSIGN:
-            e.printer_id = cc_getEarliest(cc, 0, tick, e.pages, &time);
-            p = &cc->printer[e.printer_id];
-            printf("Time %lld: %s Job %d to Printer %d\n", tick, etstr[e.type], e.job_id, e.printer_id);
-            dbg(("complete time: %lld\n", time));
-            Job jb;
-            jb.arrival_time = e.arrival_time + time;
-            jb.id = e.job_id;
-            jb.pages = e.pages;
+            new_printer_id = cc_get_earliest_printer(cc, e.printer_id, tick, e.n_pages, &time);
+            p = &cc->printer[new_printer_id];
+            q = p->task_que;
+            printf("Time %lld: %s Job %d to Printer %d\n", tick, etstr[e.type], e.job_id, new_printer_id);
+
+            job_set(&job, e.job_id, e.arrival_time + time, e.n_pages);
+            printer_add_job(p, &job);
+
             if (p->state == PS_IDLE)
             {
-                e.type = EV_START;
-                pq_push(cc->pq, &e);
+                // e.type = EV_START;
+                event_set(&ne, EV_START, new_printer_id, 0, e.job_id, tick, e.n_pages);
+                pq_push(cc->pq, &ne);
             }
+            printer_set_state(p, PS_BUSY);
 
-            printer_add_job(p, &jb);
             break;
 
         case EV_START:
             p = &cc->printer[e.printer_id];
-            printf("Time %lld: %s Printer %d, Job %d, remaining pages=%d\n",
-                   tick, etstr[e.type], e.printer_id, e.job_id, e.pages);
+            q = p->task_que;
+            p->current_job_start_time = tick;
+            printf("Time %lld: %s Printer %d, Job %d, remaining pages=%d\n", tick, etstr[e.type], e.printer_id, e.job_id, e.n_pages);
             int rempages = p->heat_limit - p->consecutive_printed_pages;
-            if (e.pages <= rempages)
+            if (e.n_pages <= rempages) /* can consecutively print without overheat */
             {
-                e.arrival_time = tick + e.pages * p->speed;
-                e.type = EV_COMPLETE;
-                p->consecutive_printed_pages += e.pages;
-                p->state = PS_BUSY;
+                // e.arrival_time = tick + e.n_pages * p->speed;
+                // e.type = EV_COMPLETE;
+                event_set(&ne, EV_COMPLETE, e.printer_id, e.src_printer_id, e.job_id, tick + e.n_pages * p->speed, e.n_pages);
+                p->consecutive_printed_pages += e.n_pages;
             }
             else
             {
-                e.pages -= rempages;
-                e.arrival_time = tick + rempages * p->speed;
-                e.type = EV_OVERHEAT;
+                // e.n_pages -= rempages;
+                // e.arrival_time = tick + rempages * p->speed;
+                // e.type = EV_OVERHEAT;
+                event_set(&ne, EV_OVERHEAT, e.printer_id, e.src_printer_id, e.job_id, tick + rempages * p->speed, e.n_pages - rempages);
                 p->consecutive_printed_pages += rempages;
             }
-            pq_push(cc->pq, &e);
+            // p->state = PS_BUSY;
+            printer_set_state(p, PS_BUSY);
+            pq_push(cc->pq, &ne);
             break;
 
         case EV_COMPLETE:
             cc->n_completed_jobs++;
-            printf("Time %lld: %s Job %d in Printer %d\n",
-                   tick, etstr[e.type], e.job_id, e.printer_id);
+            printf("Time %lld: %s Job %d in Printer %d\n", tick, etstr[e.type], e.job_id, e.printer_id);
             p = &cc->printer[e.printer_id];
             q = p->task_que;
-            Job b;
-            deque(q, &b);
-            p->n_remaining_pages -= b.pages;
-            if (0 == gettop(q, &b))
+
+            p->consecutive_printed_pages += job.n_pages;
+            dbg(("Printer id:%d, p->heat_limit=%d, p->consecutive_printed_pages=%d\n", p->id, p->heat_limit, p->consecutive_printed_pages));
+            if (p->heat_limit == p->consecutive_printed_pages)
             {
-                e.arrival_time = tick;
-                e.job_id = b.id;
-                e.pages = b.pages;
-                e.type = EV_START;
-                pq_push(cc->pq, &e);
+                p->rest_end_time = tick + p->rest_time;
+                dbg(("printer %d idle, overheat, restart time=%lld\n", p->id, p->rest_end_time));
+                // p->rest_end_time = tick + p->rest_time;
+                // e.arrival_time = tick;
+                // e.type = EV_OVERHEAT;
+                event_set(&ne, EV_OVERHEAT, e.printer_id, e.src_printer_id, e.job_id, tick, 0);
+                pq_push(cc->pq, &ne);
+            }
+
+            deque(q, &job);
+            p->n_remaining_pages -= job.n_pages;
+            if (0 == gettop(q, &job)) // Current printer's queue is not empty
+            {
+                // e.arrival_time = tick;
+                // e.job_id = job.id;
+                // e.n_pages = job.n_pages;
+                // e.type = EV_START;
+
+                event_set(&ne, EV_START, e.printer_id, e.src_printer_id, job.id, tick, job.n_pages);
+                pq_push(cc->pq, &ne);
             }
             else
             {
-                p->state = PS_IDLE;
-                if (p->heat_limit == p->consecutive_printed_pages)
-                {
-                    p->rest_end_time = tick + p->rest_time;
-                    e.arrival_time = tick;
-                    e.type = EV_OVERHEAT;
-                    pq_push(cc->pq, &e);
-                }
+                // p->state = PS_IDLE;
+                // p->consecutive_printed_pages = 0;
+                // printer_set_state(p, PS_IDLE);
+                printer_set_state(p, PS_IDLE);
             }
             break;
 
         case EV_OVERHEAT:
             p = &cc->printer[e.printer_id];
+            q = p->task_que;
             p->rest_end_time = tick + p->rest_time;
-            p->state = PS_RESTING;
+            // p->state = PS_RESTING;
+            printer_set_state(p, PS_RESTING);
             printf("Time %lld: %s Printer %d, Restart time=%lld\n",
                    tick, etstr[e.type], e.printer_id, p->rest_end_time);
-            e.arrival_time = p->rest_end_time;
-            e.type = EV_REST_END;
-            pq_push(cc->pq, &e);
 
-            q = p->task_que;
-            if (0 == gettop(q, &b))
+            if (e.n_pages)
             {
-                if (b.pages > p->heat_limit)
-                {
-                    e.arrival_time = tick;
-                    e.type = EV_REASSIGN;
-                    e.job_id = b.id;
-                    e.pages = b.pages - p->heat_limit;
-                    e.src_printer_id = p->id;
-                    pq_push(cc->pq, &e);
-                    deque(q, NULL);
-                }
-            }
+                // e.arrival_time = p->rest_end_time;
+                // e.type = EV_REST_END;
+                event_set(&ne, EV_REST_END, e.printer_id, e.src_printer_id, e.job_id, p->rest_end_time, e.n_pages);
+                pq_push(cc->pq, &ne);
 
+                deque(q, &job);
+                p->n_remaining_pages -= e.n_pages;
+
+                // e.arrival_time = tick;
+                // e.type = EV_REASSIGN;
+                // e.job_id = job.id;
+                // e.pages = job.pages - p->heat_limit;
+                // e.src_printer_id = p->id;
+                event_set(&ne, EV_REASSIGN, e.printer_id, p->id, e.job_id, tick, e.n_pages);
+                pq_push(cc->pq, &ne);
+            }
             break;
 
         case EV_REST_END:
-            printf("Time %lld: %s Printer %d\n",
-                   tick, etstr[e.type], e.printer_id);
             p = &cc->printer[e.printer_id];
-            p->consecutive_printed_pages = 0;
             q = p->task_que;
-            Job j;
-            if (-1 != gettop(q, &j))
+            p->consecutive_printed_pages = 0;
+            printf("Time %lld: %s Printer %d\n", tick, etstr[e.type], e.printer_id);
+
+            if (!gettop(q, &job)) // Que is not empty
             {
-                e.arrival_time = tick;
-                e.job_id = j.id;
-                e.pages = j.pages;
-                e.type = EV_START;
-                pq_push(cc->pq, &e);
+                // e.arrival_time = tick;
+                // e.job_id = job.id;
+                // e.n_pages = job.n_pages;
+                // e.type = EV_START;
+                event_set(&ne, EV_START, e.printer_id, e.src_printer_id, job.id, tick, job.n_pages);
+                pq_push(cc->pq, &ne);
                 p->state = PS_BUSY;
             }
             else
             {
-                p->state = PS_IDLE;
+                // p->state = PS_IDLE;
+                printer_set_state(p, PS_IDLE);
             }
             break;
 
         case EV_REASSIGN:
-            e.printer_id = cc_getEarliest(cc, e.printer_id, tick, e.pages, &time);
+            new_printer_id = cc_get_earliest_printer(cc, e.src_printer_id, tick, e.n_pages, &time);
+            p = &cc->printer[new_printer_id];
+            q = p->task_que;
             printf("Time %lld: %s Job %d, remaining pages=%d, from Printer %d to Printer %d\n",
-                   tick, etstr[e.type], e.job_id, e.pages, e.src_printer_id, e.printer_id);
-            e.type = EV_START;
-            pq_push(cc->pq, &e);
+                   tick, etstr[e.type], e.job_id, e.n_pages, e.src_printer_id, new_printer_id);
+
+            job.arrival_time = e.arrival_time + time;
+            job.id = e.job_id;
+            job.n_pages = e.n_pages;
+            printer_add_job(p, &job);
+
+            if (p->state == PS_IDLE)
+            {
+                // e.type = EV_START;
+                event_set(&ne, EV_START, new_printer_id, e.src_printer_id, job.id, tick, job.n_pages);
+                pq_push(cc->pq, &ne);
+            }
+
             break;
 
         default:
@@ -556,7 +760,7 @@ int main()
         N; // number of job
     if (2 != scanf("%d %d", &M, &N))
     {
-        fprintf(stderr, "Usage: M, N\n");
+        fprintf(stderr, "Wrong inputs\n");
         return 0;
     }
 
@@ -575,14 +779,17 @@ int main()
 
     for (int i = 1; i <= N; ++i)
     {
+        LL arrival_time;
+        int n_pages;
+        scanf("%lld %d", &arrival_time, &n_pages);
         Event e;
-        e.job_id = i;
-        e.type = EV_ARRIVE;
-        scanf("%lld %d", &e.arrival_time, &e.pages);
+        // e.job_id = i;
+        // e.type = EV_ARRIVE;
+        event_set(&e, EV_ARRIVE, 0, 0, i, arrival_time, n_pages);
         pq_push(cc->pq, &e);
     }
 
-    printf("Finish time: %lld", cc_process(cc));
+    printf("Finish time: %lld", cc_sim(cc));
 
     cc_destroy(cc);
 
