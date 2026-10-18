@@ -717,18 +717,20 @@ LL cc_sim(CopyCenter *cc)
 
             event_set(&ne, EV_REST_END, e.printer_id, e.src_printer_id, e.job_id, p->rest_end_time, e.n_pages);
             pq_push(cc->pq, &ne);
-
+            dbg(("Overheat with %d pages\n", e.n_pages));
+             deque(q, &job);
             if (e.n_pages > 0)
             {
-                deque(q, &job);
+                // deque(q, &job);
                 p->n_remaining_pages -= e.n_pages;
                 event_set(&ne, EV_REASSIGN, e.printer_id, p->id, e.job_id, tick, e.n_pages);
                 pq_push(cc->pq, &ne);
             }
-            // else
-            // {
-            //     p->n_remaining_pages -= job.n_pages;
-            // }
+            else
+            {
+                // gettop(q, &job);
+                p->n_remaining_pages -= job.n_pages;
+            }
             break;
 
         case EV_REST_END:
