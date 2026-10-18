@@ -76,7 +76,11 @@ int _is_higher_priority(Event *a, Event *b)
         return a->arrival_time < b->arrival_time;
 
     if (a->type != b->type)
+    {
+        // int prio_map[] = {0, 1, 3, 2, 4, 5, 6, 7};
+        // return prio_map[a->type] < prio_map[b->type];
         return a->type < b->type;
+    }
 
     switch (a->type)
     {
@@ -426,26 +430,15 @@ void printer_add_job(Printer *p, Job *j)
 
 LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
 {
+#if defined(DEBUG)
+    const char str[][20] = {"IDLE", "BUSY", "RESTING"};
+#endif
     LL retval;
     if (!p)
         return 0LL;
 
     switch (p->state)
     {
-    // case PS_RESTING:
-    //     LL rest_end_time = MAX(p->rest_end_time - tick, 0LL);
-    //     retval = tick + rest_end_time + (p->n_remaining_pages + new_job_pages) * p->speed;
-    //     break;
-    // case PS_BUSY:
-    //     int printed_pages = (tick - p->current_job_start_time) / p->speed;
-    //     int remaining_pages = p->n_remaining_pages - printed_pages;
-    //     retval = tick + (remaining_pages + new_job_pages) * p->speed;
-    //     break;
-    // case PS_IDLE:
-    // default:
-    //     retval = tick + new_job_pages * p->speed;
-    //     dbg(("tick %lld, new job pages %d, speed %d\n", tick, new_job_pages, p->speed));
-    //     break;
     case PS_RESTING:
     {
         LL start_time = MAX(tick, p->rest_end_time);
@@ -462,6 +455,8 @@ LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
         retval = tick + (LL)new_job_pages * p->speed;
         break;
     }
+
+    dbg(("Printer %d at %s turn available at %lld\n", p->id, str[p->state], retval));
 
     return retval;
 }
@@ -515,7 +510,7 @@ CopyCenter *cc_create(int n_printers, int n_jobs)
         p->task_que = (Queue *)calloc(1, sizeof(Queue));
         assert(p->task_que);
         p->task_que->front = p->task_que->rear = 0;
-        p->task_que->size = n_jobs;
+        p->task_que->size = n_jobs + 4;
         p->task_que->data = (Job *)calloc(n_jobs + 5, sizeof(Job));
         assert(p->task_que->data);
     }
@@ -588,6 +583,7 @@ LL cc_sim(CopyCenter *cc)
     const char etstr[][15] = {"", "COMPLETE", "OVERHEAT", "REST END", "ARRIVE", "REASSIGN", "ASSIGN", "START"};
     Event e, ne;
     LL time, tick = 0;
+    PrinterState old_state;
 
     if (!cc)
     {
@@ -620,11 +616,12 @@ LL cc_sim(CopyCenter *cc)
             printf("Time %lld: %s Job %d to Printer %d\n", tick, etstr[e.type], e.job_id, new_printer_id);
 
             job_set(&job, e.job_id, e.arrival_time + time, e.n_pages);
+            old_state = printer_get_state(p);
             printer_add_job(p, &job);
 
-            if (PS_IDLE == printer_get_state(p))
+            if (old_state == PS_IDLE)
             {
-                // e.type = EV_START;
+                printer_set_state(p, PS_BUSY);
                 event_set(&ne, EV_START, new_printer_id, 0, e.job_id, tick, e.n_pages);
                 pq_push(cc->pq, &ne);
             }
@@ -635,6 +632,12 @@ LL cc_sim(CopyCenter *cc)
         case EV_START:
             p = &cc->printer[e.printer_id];
             q = p->task_que;
+
+            if (printer_get_state(p) == PS_RESTING)
+            {
+                dbg(("Printer %d is resting\n", p->id));
+                break;
+            }
 
             p->current_job_start_time = tick;
             printf("Time %lld: %s Printer %d, Job %d, remaining pages=%d\n", tick, etstr[e.type], e.printer_id, e.job_id, e.n_pages);
@@ -679,6 +682,7 @@ LL cc_sim(CopyCenter *cc)
                 // e.type = EV_OVERHEAT;
                 event_set(&ne, EV_OVERHEAT, e.printer_id, e.src_printer_id, e.job_id, tick, 0);
                 pq_push(cc->pq, &ne);
+                break;
             }
 
             // deque(q, &job);
@@ -711,8 +715,6 @@ LL cc_sim(CopyCenter *cc)
             printf("Time %lld: %s Printer %d, Restart time=%lld\n",
                    tick, etstr[e.type], e.printer_id, p->rest_end_time);
 
-            // e.arrival_time = p->rest_end_time;
-            // e.type = EV_REST_END;
             event_set(&ne, EV_REST_END, e.printer_id, e.src_printer_id, e.job_id, p->rest_end_time, e.n_pages);
             pq_push(cc->pq, &ne);
 
@@ -720,15 +722,13 @@ LL cc_sim(CopyCenter *cc)
             {
                 deque(q, &job);
                 p->n_remaining_pages -= e.n_pages;
-
-                // e.arrival_time = tick;
-                // e.type = EV_REASSIGN;
-                // e.job_id = job.id;
-                // e.pages = job.pages - p->heat_limit;
-                // e.src_printer_id = p->id;
                 event_set(&ne, EV_REASSIGN, e.printer_id, p->id, e.job_id, tick, e.n_pages);
                 pq_push(cc->pq, &ne);
             }
+            // else
+            // {
+            //     p->n_remaining_pages -= job.n_pages;
+            // }
             break;
 
         case EV_REST_END:
@@ -756,19 +756,27 @@ LL cc_sim(CopyCenter *cc)
 
         case EV_REASSIGN:
             new_printer_id = cc_get_earliest_printer(cc, e.src_printer_id, tick, e.n_pages, &time);
+            if (new_printer_id == e.src_printer_id)
+            {
+                dbg(("Printer %d: no new printer id\n", e.src_printer_id));
+                break;
+            }
+
             p = &cc->printer[new_printer_id];
             q = p->task_que;
             printf("Time %lld: %s Job %d, remaining pages=%d, from Printer %d to Printer %d\n",
                    tick, etstr[e.type], e.job_id, e.n_pages, e.src_printer_id, new_printer_id);
 
-            job.arrival_time = e.arrival_time + time;
-            job.id = e.job_id;
-            job.n_pages = e.n_pages;
+            // job.arrival_time = time;
+            // job.id = e.job_id;
+            // job.n_pages = e.n_pages;
+            job_set(&job, e.job_id, tick, e.n_pages);
+            old_state = printer_get_state(p);
             printer_add_job(p, &job);
 
-            if (p->state == PS_IDLE)
+            if (old_state == PS_IDLE)
             {
-                // e.type = EV_START;
+                printer_set_state(p, PS_BUSY);
                 event_set(&ne, EV_START, new_printer_id, e.src_printer_id, job.id, tick, job.n_pages);
                 pq_push(cc->pq, &ne);
             }
