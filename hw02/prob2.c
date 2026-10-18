@@ -77,7 +77,7 @@ int _is_higher_priority(Event *a, Event *b)
 
     if (a->type != b->type)
     {
-        // int prio_map[] = {0, 1, 3, 2, 4, 5, 6, 7};
+        // int prio_map[] = {0, 1, 2, 3, 4, 5, 6, 7};
         // return prio_map[a->type] < prio_map[b->type];
         return a->type < b->type;
     }
@@ -456,7 +456,7 @@ LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
         break;
     }
 
-    dbg(("Printer %d at %s turn available at %lld\n", p->id, str[p->state], retval));
+    dbg(("Printer %d now=%s until %lld\n", p->id, str[p->state], retval));
 
     return retval;
 }
@@ -469,16 +469,24 @@ PrinterState printer_get_state(Printer *p)
     return p->state;
 }
 
-void printer_set_state(Printer *p, PrinterState ps)
+void printer_set_state(Printer *p, PrinterState ps, LL tick)
 {
     if (!p)
         return;
 
     p->state = ps;
 
-    if (PS_RESTING == ps)
+    // if (PS_RESTING == ps)
+    switch (ps)
     {
+    case PS_RESTING:
         p->consecutive_printed_pages = 0;
+        break;
+    case PS_BUSY:
+        p->current_job_start_time = tick;
+        break;
+    default:
+        break;
     }
 }
 
@@ -563,8 +571,6 @@ int cc_get_earliest_printer(CopyCenter *cc, int printer_id, LL tick, int njpages
         Printer *p = &cc->printer[i];
         val = printer_get_end_time(p, tick, njpages);
 
-        dbg(("Printer %d: target time %lld\n", i, val));
-
         if (val < retval)
         {
             retidx = i;
@@ -621,11 +627,11 @@ LL cc_sim(CopyCenter *cc)
 
             if (old_state == PS_IDLE)
             {
-                printer_set_state(p, PS_BUSY);
+                // printer_set_state(p, PS_BUSY, tick);
                 event_set(&ne, EV_START, new_printer_id, 0, e.job_id, tick, e.n_pages);
                 pq_push(cc->pq, &ne);
             }
-            printer_set_state(p, PS_BUSY);
+            printer_set_state(p, PS_BUSY,tick);
 
             break;
 
@@ -653,7 +659,7 @@ LL cc_sim(CopyCenter *cc)
                 p->consecutive_printed_pages += rempages;
             }
             // p->state = PS_BUSY;
-            printer_set_state(p, PS_BUSY);
+            printer_set_state(p, PS_BUSY, tick);
             pq_push(cc->pq, &ne);
             break;
 
@@ -686,7 +692,7 @@ LL cc_sim(CopyCenter *cc)
             }
             else
             {
-                printer_set_state(p, PS_IDLE);
+                printer_set_state(p, PS_IDLE, 0);
             }
             break;
 
@@ -695,7 +701,7 @@ LL cc_sim(CopyCenter *cc)
             q = p->task_que;
             p->rest_end_time = tick + p->rest_time;
             // p->state = PS_RESTING;
-            printer_set_state(p, PS_RESTING);
+            printer_set_state(p, PS_RESTING, 0);
             printf("Time %lld: %s Printer %d, Restart time=%lld\n",
                    tick, etstr[e.type], e.printer_id, p->rest_end_time);
 
@@ -725,12 +731,12 @@ LL cc_sim(CopyCenter *cc)
             {
                 event_set(&ne, EV_START, e.printer_id, e.src_printer_id, job.id, tick, job.n_pages);
                 pq_push(cc->pq, &ne);
-                printer_set_state(p, PS_BUSY);
+                printer_set_state(p, PS_BUSY, tick);
             }
             else
             {
                 // p->state = PS_IDLE;
-                printer_set_state(p, PS_IDLE);
+                printer_set_state(p, PS_IDLE, 0);
             }
             break;
 
@@ -752,7 +758,7 @@ LL cc_sim(CopyCenter *cc)
 
             if (old_state == PS_IDLE)
             {
-                printer_set_state(p, PS_BUSY);
+                printer_set_state(p, PS_BUSY, tick);
                 event_set(&ne, EV_START, new_printer_id, e.src_printer_id, job.id, tick, job.n_pages);
                 pq_push(cc->pq, &ne);
             }
