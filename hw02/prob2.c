@@ -3,8 +3,7 @@
 #include <assert.h>
 #include <string.h>
 
-// #define DEBUG
-#ifdef DEBUG
+#if defined(DEBUG)
 #define dbg(x)                      \
     do                              \
     {                               \
@@ -392,7 +391,8 @@ typedef enum printer_state
 {
     PS_IDLE = 0,
     PS_BUSY,
-    PS_RESTING
+    PS_RESTING,
+    PS_TOTAL_NUMBER
 } PrinterState;
 
 typedef struct printer
@@ -426,27 +426,52 @@ void printer_add_job(Printer *p, Job *j)
 
 LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
 {
-    PrinterState ps = p->state;
-    LL val;
-    switch (ps)
+    LL retval;
+    if (!p)
+        return 0LL;
+
+    switch (p->state)
     {
+    // case PS_RESTING:
+    //     LL rest_end_time = MAX(p->rest_end_time - tick, 0LL);
+    //     retval = tick + rest_end_time + (p->n_remaining_pages + new_job_pages) * p->speed;
+    //     break;
+    // case PS_BUSY:
+    //     int printed_pages = (tick - p->current_job_start_time) / p->speed;
+    //     int remaining_pages = p->n_remaining_pages - printed_pages;
+    //     retval = tick + (remaining_pages + new_job_pages) * p->speed;
+    //     break;
+    // case PS_IDLE:
+    // default:
+    //     retval = tick + new_job_pages * p->speed;
+    //     dbg(("tick %lld, new job pages %d, speed %d\n", tick, new_job_pages, p->speed));
+    //     break;
     case PS_RESTING:
-        LL rest_end_time = MAX(p->rest_end_time - tick, 0LL);
-        val = tick + rest_end_time + (p->n_remaining_pages + new_job_pages) * p->speed;
+    {
+        LL start_time = MAX(tick, p->rest_end_time);
+        retval = start_time + (LL)(p->n_remaining_pages + new_job_pages) * p->speed;
         break;
+    }
     case PS_BUSY:
-        int printed_pages = (tick - p->current_job_start_time) / p->speed;
-        int remaining_pages = p->n_remaining_pages - printed_pages;
-        val = tick + (remaining_pages + new_job_pages) * p->speed;
+    {
+        retval = p->current_job_start_time + (LL)(p->n_remaining_pages + new_job_pages) * p->speed;
         break;
+    }
     case PS_IDLE:
     default:
-        val = tick + new_job_pages * p->speed;
-        dbg(("tick %lld, new job pages %d, speed %d\n", tick, new_job_pages, p->speed));
+        retval = tick + (LL)new_job_pages * p->speed;
         break;
     }
 
-    return val;
+    return retval;
+}
+
+PrinterState printer_get_state(Printer *p)
+{
+    if (!p)
+        return PS_TOTAL_NUMBER;
+
+    return p->state;
 }
 
 void printer_set_state(Printer *p, PrinterState ps)
@@ -456,7 +481,7 @@ void printer_set_state(Printer *p, PrinterState ps)
 
     p->state = ps;
 
-    if (PS_IDLE == ps || PS_RESTING == ps)
+    if (PS_RESTING == ps)
     {
         p->consecutive_printed_pages = 0;
     }
@@ -571,6 +596,7 @@ LL cc_sim(CopyCenter *cc)
     }
 
     while (!pq_pop(cc->pq, &e) && cc->n_completed_jobs < cc->n_jobs)
+    // while (!pq_pop(cc->pq, &e))
     {
         tick = e.arrival_time;
         Printer *p = NULL;
@@ -596,7 +622,7 @@ LL cc_sim(CopyCenter *cc)
             job_set(&job, e.job_id, e.arrival_time + time, e.n_pages);
             printer_add_job(p, &job);
 
-            if (p->state == PS_IDLE)
+            if (PS_IDLE == printer_get_state(p))
             {
                 // e.type = EV_START;
                 event_set(&ne, EV_START, new_printer_id, 0, e.job_id, tick, e.n_pages);
@@ -609,6 +635,7 @@ LL cc_sim(CopyCenter *cc)
         case EV_START:
             p = &cc->printer[e.printer_id];
             q = p->task_que;
+
             p->current_job_start_time = tick;
             printf("Time %lld: %s Printer %d, Job %d, remaining pages=%d\n", tick, etstr[e.type], e.printer_id, e.job_id, e.n_pages);
             int rempages = p->heat_limit - p->consecutive_printed_pages;
@@ -638,7 +665,10 @@ LL cc_sim(CopyCenter *cc)
             p = &cc->printer[e.printer_id];
             q = p->task_que;
 
-            p->consecutive_printed_pages += job.n_pages;
+            deque(q, &job);
+            // p->consecutive_printed_pages += job.n_pages;
+            p->n_remaining_pages -= job.n_pages;
+
             dbg(("Printer id:%d, p->heat_limit=%d, p->consecutive_printed_pages=%d\n", p->id, p->heat_limit, p->consecutive_printed_pages));
             if (p->heat_limit == p->consecutive_printed_pages)
             {
@@ -651,8 +681,8 @@ LL cc_sim(CopyCenter *cc)
                 pq_push(cc->pq, &ne);
             }
 
-            deque(q, &job);
-            p->n_remaining_pages -= job.n_pages;
+            // deque(q, &job);
+            // p->n_remaining_pages -= job.n_pages;
             if (0 == gettop(q, &job)) // Current printer's queue is not empty
             {
                 // e.arrival_time = tick;
@@ -681,13 +711,13 @@ LL cc_sim(CopyCenter *cc)
             printf("Time %lld: %s Printer %d, Restart time=%lld\n",
                    tick, etstr[e.type], e.printer_id, p->rest_end_time);
 
-            if (e.n_pages)
-            {
-                // e.arrival_time = p->rest_end_time;
-                // e.type = EV_REST_END;
-                event_set(&ne, EV_REST_END, e.printer_id, e.src_printer_id, e.job_id, p->rest_end_time, e.n_pages);
-                pq_push(cc->pq, &ne);
+            // e.arrival_time = p->rest_end_time;
+            // e.type = EV_REST_END;
+            event_set(&ne, EV_REST_END, e.printer_id, e.src_printer_id, e.job_id, p->rest_end_time, e.n_pages);
+            pq_push(cc->pq, &ne);
 
+            if (e.n_pages > 0)
+            {
                 deque(q, &job);
                 p->n_remaining_pages -= e.n_pages;
 
@@ -715,7 +745,7 @@ LL cc_sim(CopyCenter *cc)
                 // e.type = EV_START;
                 event_set(&ne, EV_START, e.printer_id, e.src_printer_id, job.id, tick, job.n_pages);
                 pq_push(cc->pq, &ne);
-                p->state = PS_BUSY;
+                printer_set_state(p, PS_BUSY);
             }
             else
             {
