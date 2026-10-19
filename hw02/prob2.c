@@ -636,11 +636,10 @@ LL cc_sim(CopyCenter *cc)
 
             if (old_state == PS_IDLE)
             {
-                // printer_set_state(p, PS_BUSY, tick);
                 event_set(&ne, EV_START, new_printer_id, 0, e.job_id, tick, e.n_pages);
                 pq_push(cc->pq, &ne);
+                printer_set_state(p, PS_BUSY, tick);
             }
-            printer_set_state(p, PS_BUSY, tick);
 
             break;
 
@@ -671,7 +670,7 @@ LL cc_sim(CopyCenter *cc)
                 dbg(("rempages=%d, p->speed=%d\n", rempages, p->speed));
             }
 
-            printer_set_state(p, PS_BUSY, tick);
+            // printer_set_state(p, PS_BUSY, tick);
             pq_push(cc->pq, &ne);
             break;
 
@@ -692,15 +691,15 @@ LL cc_sim(CopyCenter *cc)
                 dbg(("printer %d idle, overheat, restart time=%lld\n", p->id, p->rest_end_time));
                 event_set(&ne, EV_OVERHEAT, e.printer_id, e.src_printer_id, e.job_id, tick, 0);
                 pq_push(cc->pq, &ne);
+                // printer_set_state(p, PS_RESTING, tick);
                 break;
             }
 
-            // deque(q, &job);
-            // p->n_remaining_pages -= job.n_pages;
             if (0 == gettop(q, &job)) // Current printer's queue is not empty
             {
                 event_set(&ne, EV_START, e.printer_id, e.src_printer_id, job.id, tick, job.n_pages);
                 pq_push(cc->pq, &ne);
+                printer_set_state(p, PS_BUSY, tick);
             }
             else
             {
@@ -712,8 +711,7 @@ LL cc_sim(CopyCenter *cc)
             p = &cc->printer[e.printer_id];
             q = p->task_que;
             p->rest_end_time = tick + p->rest_time;
-            // p->curr_state = PS_RESTING;
-            printer_set_state(p, PS_RESTING, 0);
+            printer_set_state(p, PS_RESTING, tick);
             printf("Time %lld: %s Printer %d, Restart time=%lld\n",
                    tick, etstr[e.type], e.printer_id, p->rest_end_time);
 
@@ -723,7 +721,7 @@ LL cc_sim(CopyCenter *cc)
             if (e.n_pages > 0)
             {
                 deque(q, &job);
-                p->n_remaining_pages -= e.n_pages;
+                p->n_remaining_pages -= job.n_pages; // e.n_pages;
                 event_set(&ne, EV_REASSIGN, e.printer_id, p->id, e.job_id, tick, e.n_pages);
                 pq_push(cc->pq, &ne);
             }

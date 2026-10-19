@@ -79,6 +79,6 @@ foreach ($file in $testFiles) {
         # Get-Content $outPath
         # Write-Host "=== Expected Output ==="
         # Get-Content $ansPath
-        break
+        # break
     }
 }
