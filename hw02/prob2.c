@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <limits.h>
 
 #if defined(DEBUG)
 #define dbg(x)                      \
