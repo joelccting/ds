@@ -404,14 +404,16 @@ typedef struct printer
     int id;
     int speed;      // required time per page
     int heat_limit; // max number of consecutively printing pages before overheating
-    int rest_time;  // required rest arrival_time
+    LL rest_time;   // required rest arrival_time
     int n_tasks;
     Queue *task_que; // task_que queue
     int n_remaining_pages;
-    PrinterState state;
+    PrinterState curr_state;
+    PrinterState prev_state;
     LL rest_end_time;
     int consecutive_printed_pages;
     LL current_job_start_time;
+    LL idle_start_time;
 } Printer;
 
 void printer_add_job(Printer *p, Job *j)
@@ -437,7 +439,7 @@ LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
     if (!p)
         return 0LL;
 
-    switch (p->state)
+    switch (p->curr_state)
     {
     case PS_RESTING:
     {
@@ -456,7 +458,7 @@ LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
         break;
     }
 
-    dbg(("Printer %d now=%s until %lld\n", p->id, str[p->state], retval));
+    dbg(("Printer %d now=%s until %lld\n", p->id, str[p->curr_state], retval));
 
     return retval;
 }
@@ -466,7 +468,7 @@ PrinterState printer_get_state(Printer *p)
     if (!p)
         return PS_TOTAL_NUMBER;
 
-    return p->state;
+    return p->curr_state;
 }
 
 void printer_set_state(Printer *p, PrinterState ps, LL tick)
@@ -474,20 +476,27 @@ void printer_set_state(Printer *p, PrinterState ps, LL tick)
     if (!p)
         return;
 
-    p->state = ps;
+    p->prev_state = p->curr_state;
+    p->curr_state = ps;
 
-    // if (PS_RESTING == ps)
     switch (ps)
     {
-    case PS_RESTING:
-        p->consecutive_printed_pages = 0;
+    // case PS_RESTING:
+    case PS_IDLE:
+        // p->consecutive_printed_pages = 0;
+        p->idle_start_time = tick;
         break;
     case PS_BUSY:
         p->current_job_start_time = tick;
+        if (p->prev_state == PS_IDLE && tick > p->idle_start_time)
+            p->consecutive_printed_pages = 0;
         break;
     default:
         break;
     }
+
+    if (PS_RESTING == p->prev_state && PS_RESTING != p->curr_state)
+        p->consecutive_printed_pages = 0;
 }
 
 typedef struct copy_center
@@ -631,7 +640,7 @@ LL cc_sim(CopyCenter *cc)
                 event_set(&ne, EV_START, new_printer_id, 0, e.job_id, tick, e.n_pages);
                 pq_push(cc->pq, &ne);
             }
-            printer_set_state(p, PS_BUSY,tick);
+            printer_set_state(p, PS_BUSY, tick);
 
             break;
 
@@ -648,6 +657,7 @@ LL cc_sim(CopyCenter *cc)
             p->current_job_start_time = tick;
             printf("Time %lld: %s Printer %d, Job %d, remaining pages=%d\n", tick, etstr[e.type], e.printer_id, e.job_id, e.n_pages);
             int rempages = p->heat_limit - p->consecutive_printed_pages;
+            dbg(("e.n_pages=%d, rempages=%d\n", e.n_pages, rempages));
             if (e.n_pages <= rempages) /* can consecutively print without overheat */
             {
                 event_set(&ne, EV_COMPLETE, e.printer_id, e.src_printer_id, e.job_id, tick + e.n_pages * p->speed, e.n_pages);
@@ -655,10 +665,12 @@ LL cc_sim(CopyCenter *cc)
             }
             else
             {
-                event_set(&ne, EV_OVERHEAT, e.printer_id, e.src_printer_id, e.job_id, tick + rempages * p->speed, e.n_pages - rempages);
+                event_set(&ne, EV_OVERHEAT, e.printer_id, e.src_printer_id, e.job_id, tick + (LL)rempages * p->speed, e.n_pages - rempages);
                 p->consecutive_printed_pages += rempages;
+                dbg(("Time %lld: overheat will happen at %lld\n", tick, tick + (LL)rempages * p->speed));
+                dbg(("rempages=%d, p->speed=%d\n", rempages, p->speed));
             }
-            // p->state = PS_BUSY;
+
             printer_set_state(p, PS_BUSY, tick);
             pq_push(cc->pq, &ne);
             break;
@@ -692,7 +704,7 @@ LL cc_sim(CopyCenter *cc)
             }
             else
             {
-                printer_set_state(p, PS_IDLE, 0);
+                printer_set_state(p, PS_IDLE, tick);
             }
             break;
 
@@ -700,7 +712,7 @@ LL cc_sim(CopyCenter *cc)
             p = &cc->printer[e.printer_id];
             q = p->task_que;
             p->rest_end_time = tick + p->rest_time;
-            // p->state = PS_RESTING;
+            // p->curr_state = PS_RESTING;
             printer_set_state(p, PS_RESTING, 0);
             printf("Time %lld: %s Printer %d, Restart time=%lld\n",
                    tick, etstr[e.type], e.printer_id, p->rest_end_time);
@@ -735,8 +747,8 @@ LL cc_sim(CopyCenter *cc)
             }
             else
             {
-                // p->state = PS_IDLE;
-                printer_set_state(p, PS_IDLE, 0);
+                // p->curr_state = PS_IDLE;
+                printer_set_state(p, PS_IDLE, tick);
             }
             break;
 
