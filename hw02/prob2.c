@@ -27,6 +27,9 @@
 
 typedef long long LL;
 
+/**
+ * Events in increasing order of time
+ */
 typedef enum event_type
 {
     EV_COMPLETE = 1,
@@ -48,6 +51,17 @@ typedef struct event
     int n_pages;
 } Event;
 
+/**
+ * @brief set private members
+ * @param[in] e Pointer to event object
+ * @param[in] type Type of event
+ * @param[in] printer_id Printer ID
+ * @param[in] src_printer_id Previous printer ID due to reassignment
+ * @param[in] job_id Job ID
+ * @param[in] arrival_time Time to start the event
+ * @param[in] n_pages Number of pages
+ * @return 0 success; otherwise failure
+ */
 int event_set(Event *e, EventType type, int printer_id, int src_printer_id, int job_id, LL arrival_time, int n_pages)
 {
     if (!e)
@@ -65,6 +79,12 @@ int event_set(Event *e, EventType type, int printer_id, int src_printer_id, int 
     return 0;
 }
 
+/**
+ * @brief private function
+ * @param[in] a An event
+ * @param[in] b The other event
+ * @return 1 if a < b; 0 if a >= b; otherwise failure
+ */
 int _is_higher_priority(Event *a, Event *b)
 {
     if (!a || !b)
@@ -100,7 +120,7 @@ int _is_higher_priority(Event *a, Event *b)
             return a->src_printer_id < b->src_printer_id;
         return a->job_id < b->job_id;
     }
-    return 0;
+    return -1;
 }
 
 typedef struct priority_queue
@@ -110,6 +130,11 @@ typedef struct priority_queue
     int size;
 } PriorityQueue;
 
+/**
+ * @brief Create a priority queue
+ * @param[in] capacity The size of the priority queue
+ * @return A pointer of the object if success; null if failure
+ */
 PriorityQueue *pq_create(int capacity)
 {
     PriorityQueue *pq = NULL;
@@ -121,6 +146,11 @@ PriorityQueue *pq_create(int capacity)
     return pq;
 }
 
+/**
+ * @brief Release the allocated memory of a priority queue
+ * @param[in] pq A pointer to the priority queue
+ * @return None
+ */
 void pq_destroy(PriorityQueue *pq)
 {
     if (!pq)
@@ -133,6 +163,12 @@ void pq_destroy(PriorityQueue *pq)
     free(pq);
 }
 
+/**
+ * @brief private function. Swap two events
+ * @param[in] a The pointer to a event
+ * @param[in] b The pointer to the other event
+ * @return None
+ */
 void _swap(Event *a, Event *b)
 {
     if (!a || !b)
@@ -147,6 +183,12 @@ void _swap(Event *a, Event *b)
     *b = t;
 }
 
+/**
+ * @brief private function. Moving a event up.
+ * @param[in] pq A pointer to the object
+ * @param[in] index Current position of the element
+ * @return None
+ */
 void _heapifyUp(PriorityQueue *pq, int index)
 {
     if (!pq)
@@ -164,6 +206,12 @@ void _heapifyUp(PriorityQueue *pq, int index)
     }
 }
 
+/**
+ * @brief private function. Moving a event down.
+ * @param[in] pq A pointer to the object
+ * @param[in] index Current position of the element
+ * @return None
+ */
 void _heapifyDown(PriorityQueue *pq, int index)
 {
     if (!pq)
@@ -192,6 +240,12 @@ void _heapifyDown(PriorityQueue *pq, int index)
     }
 }
 
+/**
+ * @brief Push an event into a priority queue
+ * @param[in] pq A pointer to the object
+ * @param[in] e A pointer to an event
+ * @return 0 if success; otherwise if failure
+ */
 int pq_push(PriorityQueue *pq, Event *e)
 {
     if (!pq)
@@ -218,6 +272,12 @@ int pq_push(PriorityQueue *pq, Event *e)
     return 0;
 }
 
+/**
+ * @brief Peep the top event
+ * @param[in] pq A pointer to the object
+ * @param[out] e A pointer to an event
+ * @return 0 if success; otherwise if failure
+ */
 int pq_top(PriorityQueue *pq, Event *e)
 {
     if (!pq)
@@ -238,6 +298,12 @@ int pq_top(PriorityQueue *pq, Event *e)
     return 0;
 }
 
+/**
+ * @brief Pop an event out of a priority queue
+ * @param[in] pq A pointer to the object
+ * @param[in] e A pointer to an event
+ * @return 0 if success; otherwise if failure
+ */
 int pq_pop(PriorityQueue *pq, Event *e)
 {
     if (!pq)
@@ -270,6 +336,13 @@ typedef struct job
     int n_pages;
 } Job;
 
+/**
+ * @brief Set members of job object
+ * @param[in] id Job ID
+ * @param[in] arrival_time The time when the job should be executed
+ * @param[in] n_pages Number of pages
+ * @return None
+ */
 void job_set(Job *j, int id, LL arrival_time, int n_pages)
 {
     if (!j)
@@ -288,6 +361,11 @@ typedef struct queue
     Job *data;
 } Queue;
 
+/**
+ * @brief Check whether the queue is empty
+ * @param[in] que A pointer to the object
+ * @return 1 if empty; 0 if not, otherwise failure
+ */
 int isEmpty(Queue *que)
 {
     if (!que)
@@ -305,6 +383,11 @@ int isEmpty(Queue *que)
     return 0;
 }
 
+/**
+ * @brief Check whether the queue is full
+ * @param[in] que A pointer to the object
+ * @return 1 if full; 0 if not, otherwise failure
+ */
 int isFull(Queue *que)
 {
     if (!que)
@@ -323,6 +406,12 @@ int isFull(Queue *que)
     return 0;
 }
 
+/**
+ * @brief Enque a job
+ * @param[in] que A pointer to the object
+ * @param[in] data A pointer to the job
+ * @return 1 if full; 0 if not, otherwise failure
+ */
 int enque(Queue *que, Job *data)
 {
     if (!que)
@@ -347,6 +436,9 @@ int enque(Queue *que, Job *data)
 }
 
 /**
+ * @brief Peep the top job of a queue
+ * @param[in] que A pointer to the object
+ * @param[out] data A pointer to the job
  * @return 0 if success; otherwise if failure
  */
 int gettop(Queue *que, Job *job)
@@ -370,6 +462,12 @@ int gettop(Queue *que, Job *job)
     return 0;
 }
 
+/**
+ * @brief Deque a job
+ * @param[in] que A pointer to the object
+ * @param[out] data A pointer to the job
+ * @return 0 if success; otherwise if failure
+ */
 int deque(Queue *que, Job *job)
 {
     if (!que)
@@ -417,6 +515,12 @@ typedef struct printer
     LL idle_start_time;
 } Printer;
 
+/**
+ * @brief Add a job to the printer queue
+ * @param[in] p A pointer to a printer
+ * @param[in] j A pointer to a job
+ * @return None
+ */
 void printer_add_job(Printer *p, Job *j)
 {
     if (!p || !j)
@@ -431,6 +535,13 @@ void printer_add_job(Printer *p, Job *j)
     p->n_remaining_pages += j->n_pages;
 }
 
+/**
+ * @brief Get estimated time to finish jobs in queue plus additional new pages
+ * @param[in] p A pointer to a printer
+ * @param[in] tick current time
+ * @param[in] new_job_pages additional new pages
+ * @return Estimated time
+ */
 LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
 {
 #if defined(DEBUG)
@@ -464,6 +575,11 @@ LL printer_get_end_time(Printer *p, LL tick, int new_job_pages)
     return retval;
 }
 
+/**
+ * @brief Get private member of struct printer
+ * @param[in] p A pointer to the object
+ * @return printer state
+ */
 PrinterState printer_get_state(Printer *p)
 {
     if (!p)
@@ -472,6 +588,13 @@ PrinterState printer_get_state(Printer *p)
     return p->curr_state;
 }
 
+/**
+ * @brief Set private member of struct printer
+ * @param[in] p A pointer to the object
+ * @param[in] ps A printer state to set to
+ * @param[in] tick Current time
+ * @return None
+ */
 void printer_set_state(Printer *p, PrinterState ps, LL tick)
 {
     if (!p)
@@ -510,8 +633,10 @@ typedef struct copy_center
 } CopyCenter;
 
 /**
- * @param[in] n_printers: number of printers
- * @param[in] n_jobs: number of job
+ * @brief Allocate memory for a copy center
+ * @param[in] n_printers Number of printers
+ * @param[in] n_jobs Number of job
+ * @return A pointer to the allocated object
  */
 CopyCenter *cc_create(int n_printers, int n_jobs)
 {
@@ -538,6 +663,11 @@ CopyCenter *cc_create(int n_printers, int n_jobs)
     return cc;
 }
 
+/**
+ * @brief Free the allocated memory
+ * @param[in] cc A pointer to the object
+ * @return None
+ */
 void cc_destroy(CopyCenter *cc)
 {
     if (!cc)
@@ -558,10 +688,11 @@ void cc_destroy(CopyCenter *cc)
 
 /**
  * @brief get the expected-to-finish-earliest printer
- * @param[in] printer_id the current printer id. 0 if all printers need to be evaluated.
- * @param[in] njpages new-job pages
+ * @param[in] printer_id The current printer id. 0 if all printers need to be evaluated.
+ * @param[in] tick The current time
+ * @param[in] njpages New-job pages
+ * @param[out] fin_tick tick to finish new-job pages
  * @return the printer id
- * @return fin_tick tick to finish new-job pages
  */
 int cc_get_earliest_printer(CopyCenter *cc, int printer_id, LL tick, int njpages, LL *fin_tick)
 {
@@ -594,6 +725,11 @@ int cc_get_earliest_printer(CopyCenter *cc, int printer_id, LL tick, int njpages
     return retidx;
 }
 
+/**
+ * @brief Run the copy center
+ * @param[in] cc A pointer to the object
+ * @return The time to finish all jobs
+ */
 LL cc_sim(CopyCenter *cc)
 {
     const char etstr[][15] = {"", "COMPLETE", "OVERHEAT", "REST END", "ARRIVE", "REASSIGN", "ASSIGN", "START"};
