@@ -65,6 +65,8 @@ typedef struct
 } Robot;
 
 /**
+ * @brief Check whether the robot stack is full
+ * @param[in] r A pointer to a robot
  * @return 1 full; 0 otherwise
  */
 int isFull(Robot *r)
@@ -75,6 +77,8 @@ int isFull(Robot *r)
 }
 
 /**
+ * @brief Check whether the robot stack is empty
+ * @param[in] r A pointer to a robot
  * @return 1 empty; 0 otherwise
  */
 int isEmpty(Robot *r)
@@ -84,6 +88,14 @@ int isEmpty(Robot *r)
     return 0;
 }
 
+/**
+ * @brief Push a step into the stack of a robot
+ * @param[in] r A pointer to a robot
+ * @param[in] x X coordinate
+ * @param[in] y Y coordinate
+ * @param[in] d Direction
+ * @return 0 if success; otherwise if failure
+ */
 int push(Robot *r, int x, int y, Dir d)
 {
     // Stack full
@@ -98,6 +110,12 @@ int push(Robot *r, int x, int y, Dir d)
     return 0;
 }
 
+/**
+ * @brief Peep a step at the top of the stack of a robot
+ * @param[in] r A pointer to a robot
+ * @param[out] n Top node
+ * @return 0 if success; otherwise if failure
+ */
 int getTop(Robot *r, Node *n)
 {
     if (isEmpty(r))
@@ -113,6 +131,12 @@ int getTop(Robot *r, Node *n)
     return 0;
 }
 
+/**
+ * @brief Pop the top of the stack of a robot
+ * @param[in] r A pointer to a robot
+ * @param[out] n Top node
+ * @return 0 if success; otherwise if failure
+ */
 int pop(Robot *r, Node *n)
 {
     if (getTop(r, n))
@@ -133,12 +157,11 @@ typedef struct
 } fiExp;
 
 /**
- * @brief init fiExp object
- * @param[out]
- * @param[in] H number of rows
- * @param[in] W number of columns
- * @param[in] M number of robots
- * @return None
+ * @brief Allocate memory for the field exporation object
+ * @param[in] H Number of rows of the maze
+ * @param[in] W Number of columns of the maze
+ * @param[in] M Number of robots
+ * @return A pointer to the object
  */
 fiExp *initFiExp(int H, int W, int M)
 {
@@ -168,6 +191,11 @@ fiExp *initFiExp(int H, int W, int M)
     return obj;
 }
 
+/**
+ * @brief Allocate memory for the field exporation object
+ * @param[in] obj A pointer to the object
+ * @return None
+ */
 void deleteFiExp(fiExp *obj)
 {
     assert(obj);
@@ -191,6 +219,11 @@ void deleteFiExp(fiExp *obj)
     free(obj);
 }
 
+/**
+ * @brief for debug
+ * @param[in] obj A pointer to the object
+ * @return None
+ */
 void printFiExp(fiExp *obj)
 {
     printf("%s:\n", __func__);
@@ -201,6 +234,12 @@ void printFiExp(fiExp *obj)
     }
 }
 
+/**
+ * @brief Set private member of a robot
+ * @param[in] r A pointer to the object
+ * @param[in] s Status
+ * @return None
+ */
 void setRobotStatus(Robot *r, Status s)
 {
     r->status = s;
@@ -271,6 +310,9 @@ int isCollide(fiExp *obj, char **maze, int num)
 }
 
 /**
+ * @brief Check whether the position if out of boundary
+ * @param[in] obj A pointer to the object
+ * @param[in] next A pointer to next position
  * @return 1 out of boundary; 0 on the map
  */
 int isOutOfBnd(fiExp *obj, Pos *next)
@@ -372,7 +414,7 @@ void step(fiExp *obj, char **maze, int i)
 
 /**
  * @brief Check any robots are still active
- * @param[in]
+ * @param[in] obj A pointer to the object
  * @return Number of active robots
  */
 int isRbtActive(fiExp *obj)
@@ -413,6 +455,12 @@ void pntOutput(fiExp *obj, int i)
     }
 }
 
+/**
+ * @brief Simulation
+ * @param[in] obj A pointer to the object
+ * @param[in] maze A pointer to 2D map array
+ * @return None
+ */
 void sim(fiExp *obj, char **maze)
 {
     while (isRbtActive(obj))
