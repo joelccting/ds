@@ -131,8 +131,7 @@ void sllst_swap(Sllst *obj, int l1, int r1, int l2, int r2)
             p[LEFT_1_PREV] = prev;
             p[LEFT_1_CURR] = curr;
         }
-
-        else if (cnt == r1)
+        else if (l1 != r1 && cnt == r1)
         {
             p[RIGHT_1_PREV] = prev;
             p[RIGHT_1_CURR] = curr;
@@ -142,7 +141,7 @@ void sllst_swap(Sllst *obj, int l1, int r1, int l2, int r2)
             p[LEFT_2_PREV] = prev;
             p[LEFT_2_CURR] = curr;
         }
-        else if (cnt == r2)
+        else if (l2 != r2 && cnt == r2)
         {
             p[RIGHT_2_PREV] = prev;
             p[RIGHT_2_CURR] = curr;
@@ -153,11 +152,39 @@ void sllst_swap(Sllst *obj, int l1, int r1, int l2, int r2)
         ++cnt;
     }
 
-    p[LEFT_1_PREV]->next = p[LEFT_2_CURR];
-    p[LEFT_2_PREV]->next = p[LEFT_1_CURR];
-    Node *tmp = p[RIGHT_1_CURR]->next;
-    p[RIGHT_1_CURR]->next = p[RIGHT_2_CURR]->next;
-    p[RIGHT_2_CURR]->next = tmp;
+    Node *tmp;
+    if (l1 != r1 && l2 != r2)
+    {
+        p[LEFT_1_PREV]->next = p[LEFT_2_CURR];
+        p[LEFT_2_PREV]->next = p[LEFT_1_CURR];
+        tmp = p[RIGHT_1_CURR]->next;
+        p[RIGHT_1_CURR]->next = p[RIGHT_2_CURR]->next;
+        p[RIGHT_2_CURR]->next = tmp;
+    }
+    else if (l1 == r1 && l2 != r2)
+    {
+        p[LEFT_1_PREV]->next = p[LEFT_2_CURR];
+        p[LEFT_2_PREV]->next = p[LEFT_1_CURR];
+        tmp = p[LEFT_1_CURR]->next;
+        p[LEFT_1_CURR]->next = p[RIGHT_2_CURR]->next;
+        p[RIGHT_2_CURR]->next = tmp;
+    }
+    else if (l1 != r1 && l2 == r2)
+    {
+        p[LEFT_1_PREV]->next = p[LEFT_2_CURR];
+        p[LEFT_2_PREV]->next = p[LEFT_1_CURR];
+        tmp = p[RIGHT_1_CURR]->next;
+        p[RIGHT_1_CURR]->next = p[LEFT_2_CURR]->next;
+        p[LEFT_2_CURR]->next = tmp;
+    }
+    else if (l1 == r1 && l2 == r2)
+    {
+        p[LEFT_1_PREV]->next = p[LEFT_2_CURR];
+        p[LEFT_2_PREV]->next = p[LEFT_1_CURR];
+        tmp = p[LEFT_1_CURR]->next;
+        p[LEFT_1_CURR]->next = p[LEFT_2_CURR]->next;
+        p[LEFT_2_CURR]->next = tmp;
+    }
 }
 
 Sllst *sllst_fold(Sllst *obj, int n_groups, int *group)
@@ -188,6 +215,12 @@ Sllst *sllst_fold(Sllst *obj, int n_groups, int *group)
         right = group[i + 1] - 1;
         dbg(("(%d,%d)\n", left, right));
 
+        if (left > obj->size)
+            break;
+
+        if (left <= obj->size - 1 && right >= obj->size)
+            right = obj->size - 1;
+
         while (left <= right)
         {
             tail->next = arr[left];
@@ -205,7 +238,7 @@ Sllst *sllst_fold(Sllst *obj, int n_groups, int *group)
 
     right = group[n_groups];
     dbg(("right=%d size=%d\n", right, obj->size));
-    dbg(("arr[%d] val=%d\n", right, arr[right]->val));
+    // dbg(("arr[%d] val=%d\n", right, arr[right]->val));
     while (right < obj->size)
     {
         tail->next = arr[right];
@@ -334,7 +367,9 @@ int main()
         scanf("%d", grp + i);
         grp[i] += grp[i - 1];
     }
+#if defined(DEBUG)
     sllst_print(obj);
+#endif
     Sllst *obj2 = sllst_fold(obj, k, grp);
     sllst_print(obj2);
     free(grp);
