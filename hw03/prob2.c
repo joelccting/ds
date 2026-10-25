@@ -356,7 +356,7 @@ void profile_move_after(Profile *obj, const int x, const int y)
         right_curr->next = left_curr->next;
         left_curr->next = right_curr;
 
-        if (obj->last_pinned == right_curr)
+        if (obj->last_pinned == right_curr && y < x - 1)
             obj->last_pinned = right_prev;
     }
 
