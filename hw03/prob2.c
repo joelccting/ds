@@ -90,10 +90,21 @@ void profile_print(Profile *obj)
         return;
     }
 
+#if defined(DEBUG)
+    for (int i = 0; i < obj->size; ++i)
+        printf("%4d ", i);
+    printf("\n");
+#endif
+
     Post *p = obj->dummy_head.next;
+    int cnt = 1;
     while (p)
     {
-        printf("%d ", p->id);
+#if defined(DEBUG)
+        printf("%3d%s%s", p->id, p->is_pinned ? "*" : " ", (cnt++ == obj->size) ? "" : " ");
+#else
+        printf("%d%s", p->id, (cnt++ == obj->size) ? "" : " ");
+#endif
         p = p->next;
     }
 
@@ -144,7 +155,7 @@ void profile_delete(Profile *obj, const int x)
          *curr = prev->next;
     int pos = 0;
 
-    dbg(("+%s\n", __func__));
+    // dbg(("+%s\n", __func__));
 
     if (!obj)
     {
@@ -164,12 +175,15 @@ void profile_delete(Profile *obj, const int x)
         ++pos;
     }
 
+    if (curr == obj->last_pinned)
+        obj->last_pinned = prev;
+
     prev->next = curr->next;
     if (curr->next == NULL) /* tail */
         obj->tail = prev;
     free(curr);
     obj->size--;
-    dbg(("-%s\n", __func__));
+    // dbg(("-%s\n", __func__));
 }
 
 /**
@@ -202,20 +216,28 @@ void profile_pin(Profile *obj, const int x)
     if (curr->is_pinned == true)
         return;
 
+    dbg(("curr->id=%d,%s\n", curr->id, curr->is_pinned ? "pin" : "unpin"));
+
+    if (curr == obj->tail)
+        obj->tail = prev;
+
     prev->next = curr->next;
 
     if (&obj->dummy_head == obj->last_pinned) // no pinned posts
     {
         curr->next = obj->dummy_head.next;
         obj->dummy_head.next = curr;
+        obj->last_pinned = curr;
     }
     else
     {
+        dbg(("pos=%d\n", pos));
         curr->next = obj->last_pinned->next;
         obj->last_pinned->next = curr;
+        obj->last_pinned = curr;
     }
 
-    obj->last_pinned = curr;
+    dbg(("last_pinned->id=%d\n", obj->last_pinned->id));
     curr->is_pinned = true;
 }
 
@@ -249,16 +271,21 @@ void profile_unpin(Profile *obj, const int x)
     if (curr->is_pinned == false)
         return;
 
+    if (curr == obj->last_pinned)
+        obj->last_pinned = prev;
+
     prev->next = curr->next;
     curr->next = NULL;
     obj->tail->next = curr;
+    obj->tail = curr;
     curr->is_pinned = false;
 }
 
 #define MIN(x, y) (((x) <= (y)) ? (x) : (y))
 #define MAX(x, y) (((x) <= (y)) ? (y) : (x))
-void _search(Profile *obj, const int x, const int y, Post **x_prev, Post **y_prev)
+void _search(Profile *obj, const int x, const int y, Post **left_prev, Post **right_prev)
 {
+    dbg(("x=%d,y=%d\n", x, y));
     if (!obj)
     {
         err(("Null pointer\n"));
@@ -285,10 +312,7 @@ void _search(Profile *obj, const int x, const int y, Post **x_prev, Post **y_pre
         ++pos;
     }
 
-    if (x <= y)
-        *x_prev = prev;
-    else
-        *y_prev = prev;
+    *left_prev = prev;
 
     while (right != pos)
     {
@@ -297,10 +321,7 @@ void _search(Profile *obj, const int x, const int y, Post **x_prev, Post **y_pre
         ++pos;
     }
 
-    if (x <= y)
-        *y_prev = prev;
-    else
-        *x_prev = prev;
+    *right_prev = prev;
 }
 
 /**
@@ -311,14 +332,31 @@ void profile_move_after(Profile *obj, const int x, const int y)
     if (x == y)
         return;
 
-    Post *x_prev, *y_prev;
-    _search(obj, x, y, &x_prev, &y_prev);
-    Post *x_curr = x_prev->next,
-         *y_curr = y_prev->next;
+    Post *left_prev, *right_prev;
+    _search(obj, x, y, &left_prev, &right_prev);
+    Post *left_curr = left_prev->next,
+         *right_curr = right_prev->next;
 
-    x_prev->next = x_curr->next;
-    x_curr->next = y_curr->next;
-    y_curr->next = x_curr;
+    // dbg(("x_curr=%d, y_curr=%d\n", x_curr->id, y_curr->id));
+
+    if (x < y)
+    {
+        left_prev->next = left_curr->next;
+        left_curr->next = right_curr->next;
+        right_curr->next = left_curr;
+    }
+    else
+    {
+        right_prev->next = right_curr->next;
+        right_curr->next = left_curr->next;
+        left_curr->next = right_curr;
+    }
+
+    if (obj->last_pinned == right_curr)
+        if (x < y)
+            obj->last_pinned = left_curr;
+
+    dbg(("last_pinned->id=%d\n", obj->last_pinned->id));
 }
 
 int parse(char *str, int *x, int *y)
@@ -398,6 +436,10 @@ int main()
         profile_add(obj, id);
     }
 
+#if defined(DEBUG)
+    profile_print(obj);
+#endif
+
     scanf("%d ", &m);
     for (int i = 0; i < m; ++i)
     {
@@ -428,6 +470,10 @@ int main()
             err(("SHOULD NOT BE HERE\n"));
             break;
         }
+
+#if defined(DEBUG)
+        profile_print(obj);
+#endif
     }
 
     profile_print(obj);
