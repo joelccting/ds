@@ -224,18 +224,20 @@ void profile_pin(Profile *obj, const int x)
     {
         curr->next = obj->dummy_head.next;
         obj->dummy_head.next = curr;
-        obj->last_pinned = curr;
     }
     else
     {
         dbg(("pos=%d\n", pos));
         curr->next = obj->last_pinned->next;
         obj->last_pinned->next = curr;
-        obj->last_pinned = curr;
     }
 
+    obj->last_pinned = curr;
     dbg(("last_pinned->id=%d\n", obj->last_pinned->id));
     curr->is_pinned = true;
+
+    if (obj->tail->next == curr)
+        obj->tail = curr;
     dbg(("tail->id=%d\n", obj->tail->id));
 }
 
@@ -344,17 +346,19 @@ void profile_move_after(Profile *obj, const int x, const int y)
         left_prev->next = left_curr->next;
         left_curr->next = right_curr->next;
         right_curr->next = left_curr;
+
+        if (obj->last_pinned == right_curr)
+            obj->last_pinned = left_curr;
     }
-    else
+    else // (y < x)
     {
         right_prev->next = right_curr->next;
         right_curr->next = left_curr->next;
         left_curr->next = right_curr;
-    }
 
-    if (obj->last_pinned == right_curr)
-        if (x < y)
-            obj->last_pinned = left_curr;
+        if (obj->last_pinned == right_curr)
+            obj->last_pinned = right_prev;
+    }
 
     dbg(("last_pinned->id=%d\n", obj->last_pinned->id));
 
@@ -362,7 +366,7 @@ void profile_move_after(Profile *obj, const int x, const int y)
     {
         if (x < y)
             obj->tail = left_curr;
-        else
+        else if (y + 1 < x)
             obj->tail = right_prev;
     }
 
