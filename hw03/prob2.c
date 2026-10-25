@@ -90,18 +90,13 @@ void profile_print(Profile *obj)
         return;
     }
 
-#if defined(DEBUG)
-    for (int i = 0; i < obj->size; ++i)
-        printf("%4d ", i);
-    printf("\n");
-#endif
-
     Post *p = obj->dummy_head.next;
     int cnt = 1;
     while (p)
     {
 #if defined(DEBUG)
-        printf("%3d%s%s", p->id, p->is_pinned ? "*" : " ", (cnt++ == obj->size) ? "" : " ");
+        printf("[%s%d]%d%s", p->is_pinned ? "*" : "", cnt - 1, p->id, (cnt == obj->size) ? "" : " ");
+        cnt++;
 #else
         printf("%d%s", p->id, (cnt++ == obj->size) ? "" : " ");
 #endif
@@ -142,7 +137,7 @@ void profile_add(Profile *obj, int id)
     obj->tail->next = new;
     obj->tail = new;
     obj->size++;
-    // dbg(("-%s\n", __func__));
+    dbg(("tail->id=%d\n", obj->tail->id));
 }
 
 /**
@@ -165,6 +160,7 @@ void profile_delete(Profile *obj, const int x)
 
     if (obj->size <= x)
     {
+        dbg(("No %d to delete\n", x));
         return;
     }
 
@@ -183,7 +179,7 @@ void profile_delete(Profile *obj, const int x)
         obj->tail = prev;
     free(curr);
     obj->size--;
-    // dbg(("-%s\n", __func__));
+    dbg(("tail->id=%d\n", obj->tail->id));
 }
 
 /**
@@ -203,6 +199,7 @@ void profile_pin(Profile *obj, const int x)
 
     if (obj->size <= x)
     {
+        dbg(("No %d to pin\n", x));
         return;
     }
 
@@ -239,6 +236,7 @@ void profile_pin(Profile *obj, const int x)
 
     dbg(("last_pinned->id=%d\n", obj->last_pinned->id));
     curr->is_pinned = true;
+    dbg(("tail->id=%d\n", obj->tail->id));
 }
 
 /**
@@ -258,6 +256,7 @@ void profile_unpin(Profile *obj, const int x)
 
     if (obj->size <= x)
     {
+        dbg(("No %d to unpin\n", x));
         return;
     }
 
@@ -279,6 +278,7 @@ void profile_unpin(Profile *obj, const int x)
     obj->tail->next = curr;
     obj->tail = curr;
     curr->is_pinned = false;
+    dbg(("tail->id=%d\n", obj->tail->id));
 }
 
 #define MIN(x, y) (((x) <= (y)) ? (x) : (y))
@@ -357,6 +357,16 @@ void profile_move_after(Profile *obj, const int x, const int y)
             obj->last_pinned = left_curr;
 
     dbg(("last_pinned->id=%d\n", obj->last_pinned->id));
+
+    if (right_curr == obj->tail)
+    {
+        if (x < y)
+            obj->tail = left_curr;
+        else
+            obj->tail = right_prev;
+    }
+
+    dbg(("tail->id=%d\n", obj->tail->id));
 }
 
 int parse(char *str, int *x, int *y)
