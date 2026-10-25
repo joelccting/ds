@@ -255,8 +255,70 @@ void profile_unpin(Profile *obj, const int x)
     curr->is_pinned = false;
 }
 
+#define MIN(x, y) (((x) <= (y)) ? (x) : (y))
+#define MAX(x, y) (((x) <= (y)) ? (y) : (x))
+void _search(Profile *obj, const int x, const int y, Post **x_prev, Post **y_prev)
+{
+    if (!obj)
+    {
+        err(("Null pointer\n"));
+        return;
+    }
+
+    if (obj->size <= x || obj->size <= y)
+    {
+        err(("TODO: illegal x=%d, y=%d\n", x, y));
+        return;
+    }
+
+    int left = MIN(x, y),
+        right = MAX(x, y);
+
+    Post *prev = &obj->dummy_head,
+         *curr = prev->next;
+    int pos = 0;
+
+    while (left != pos)
+    {
+        prev = curr;
+        curr = curr->next;
+        ++pos;
+    }
+
+    if (x <= y)
+        *x_prev = prev;
+    else
+        *y_prev = prev;
+
+    while (right != pos)
+    {
+        prev = curr;
+        curr = curr->next;
+        ++pos;
+    }
+
+    if (x <= y)
+        *y_prev = prev;
+    else
+        *x_prev = prev;
+}
+
+/**
+ * @brief Move the post at position x to be immediately after the post at position y
+ */
 void profile_move_after(Profile *obj, const int x, const int y)
 {
+    if (x == y)
+        return;
+
+    Post *x_prev, *y_prev;
+    _search(obj, x, y, &x_prev, &y_prev);
+    Post *x_curr = x_prev->next,
+         *y_curr = y_prev->next;
+
+    x_prev->next = x_curr->next;
+    x_curr->next = y_curr->next;
+    y_curr->next = x_curr;
 }
 
 int parse(char *str, int *x, int *y)
