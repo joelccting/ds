@@ -38,14 +38,14 @@ enum
     TOT_NUM_OPS
 };
 
-typedef struct _post
+typedef struct Post
 {
     int id;
     bool is_pinned;
-    struct _post *next;
+    struct Post *next;
 } Post;
 
-typedef struct _personal_profile_page
+typedef struct personal_profile_page
 {
     Post dummy_head;
     Post *last_pinned;
@@ -53,6 +53,11 @@ typedef struct _personal_profile_page
     int size;
 } Profile;
 
+/**
+ * @brief Create a profile object
+ * @param[in] None
+ * @return A pointer to an object
+ */
 Profile *profile_create(void)
 {
     Profile *retp = NULL;
@@ -62,6 +67,11 @@ Profile *profile_create(void)
     return retp;
 }
 
+/**
+ * @brief Free the allocated space
+ * @param[in] obj Pointer to the object
+ * @return None
+ */
 void profile_destroy(Profile *obj)
 {
     if (!obj)
@@ -82,6 +92,11 @@ void profile_destroy(Profile *obj)
     free(obj);
 }
 
+/**
+ * @brief Print the nodes
+ * @param[in] obj Pointer to the object
+ * @return None
+ */
 void profile_print(Profile *obj)
 {
     if (!obj)
@@ -142,7 +157,9 @@ void profile_add(Profile *obj, int id)
 
 /**
  * @brief Remove the post at position x from the profile
- *
+ * @param[in] obj Pointer to the object
+ * @param[in] x The position of the node which is about to be removed
+ * @return None
  */
 void profile_delete(Profile *obj, const int x)
 {
@@ -184,6 +201,9 @@ void profile_delete(Profile *obj, const int x)
 
 /**
  * @brief Pin the post at position x
+ * @param[in] obj Pointer to the object
+ * @param[in] x The position of the post to be moved as pinned
+ * @return None
  */
 void profile_pin(Profile *obj, const int x)
 {
@@ -243,6 +263,9 @@ void profile_pin(Profile *obj, const int x)
 
 /**
  * @brief Unpin the post at position x
+ * @param[in] obj Pointer to the object
+ * @param[in] x Position of the pinned post
+ * @return None
  */
 void profile_unpin(Profile *obj, const int x)
 {
@@ -285,6 +308,16 @@ void profile_unpin(Profile *obj, const int x)
 
 #define MIN(x, y) (((x) <= (y)) ? (x) : (y))
 #define MAX(x, y) (((x) <= (y)) ? (y) : (x))
+
+/**
+ * @brief Find the predecessor nodes for two given zero-based post positions
+ * @param[in]  obj Pointer to the Profile object
+ * @param[in]  x First zero-based post position
+ * @param[in]  y Second zero-based post position
+ * @param[out] left_prev Double pointer to store the predecessor node of the smaller position (min(x, y))
+ * @param[out] right_prev Double pointer to store the predecessor node of the larger position (max(x, y))
+ * @return None
+ */
 void _search(Profile *obj, const int x, const int y, Post **left_prev, Post **right_prev)
 {
     dbg(("x=%d,y=%d\n", x, y));
@@ -328,6 +361,10 @@ void _search(Profile *obj, const int x, const int y, Post **left_prev, Post **ri
 
 /**
  * @brief Move the post at position x to be immediately after the post at position y
+ * @param[in,out] obj Pointer to the Profile object
+ * @param[in] x Zero-based position of the post to move
+ * @param[in] y Zero-based position of the target post after which x will be placed
+ * @return None
  */
 void profile_move_after(Profile *obj, const int x, const int y)
 {
@@ -373,6 +410,13 @@ void profile_move_after(Profile *obj, const int x, const int y)
     dbg(("tail->id=%d\n", obj->tail->id));
 }
 
+/**
+ * @brief Parse an operation command string and extract its operation type and arguments
+ * @param[in,out] str Input command string to tokenize
+ * @param[out] x Pointer to store the first integer argument
+ * @param[out] y Pointer to store the second integer argument
+ * @return Operation enum value, or -1 if str is NULL
+ */
 int parse(char *str, int *x, int *y)
 {
     if (!str)
