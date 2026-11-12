@@ -42,6 +42,11 @@ typedef struct _sllst
     int size;
 } Sllst;
 
+/**
+ * @brief Create a singly linked list
+ * @param[in] None
+ * @return Pointer to an object
+ */
 Sllst *sllst_create(void)
 {
     Sllst *retp = (Sllst *)calloc(1, sizeof(Sllst));
@@ -49,6 +54,11 @@ Sllst *sllst_create(void)
     return retp;
 }
 
+/**
+ * @brief Free the allocated memory
+ * @param[in] Pointer to the object
+ * @return None
+ */
 void sllst_destroy(Sllst *obj)
 {
     if (!obj)
@@ -64,6 +74,13 @@ void sllst_destroy(Sllst *obj)
     free(obj);
 }
 
+/**
+ * @brief Insert a node
+ * @param[in] obj Pointer to the object
+ * @param[in] val value
+ * @param[in] pos position starting from 0
+ * @return None
+ */
 void sllst_insert(Sllst *obj, int val, int pos)
 {
     if (!obj)
@@ -88,6 +105,12 @@ void sllst_insert(Sllst *obj, int val, int pos)
     ++obj->size;
 }
 
+/**
+ * @brief Delete a node
+ * @param[in] obj Pointer to the object
+ * @param[in] pos The position of the node starting from 0
+ * @return None
+ */
 void sllst_delete(Sllst *obj, int pos)
 {
     Node *prev = &obj->dummy_head,
@@ -118,6 +141,15 @@ enum
     TOT_POINTERS
 };
 
+/**
+ * @brief Swap two segments
+ * @param[in] obj Pointer to the object
+ * @param[in] l1 Left position of the first segment
+ * @param[in] r1 Right position of the first segment
+ * @param[in] l2 Left position of the second segment
+ * @param[in] r2 Right position of the second segment
+ * @return None
+ */
 void sllst_swap(Sllst *obj, int l1, int r1, int l2, int r2)
 {
     Node *prev = &obj->dummy_head,
@@ -187,6 +219,12 @@ void sllst_swap(Sllst *obj, int l1, int r1, int l2, int r2)
     }
 }
 
+/**
+ * @brief Fold the list
+ * @param[in] n_groups Number of groups
+ * @param[in] group Pointer to an array which stores the length of each group
+ * @return A new linked list
+ */
 Sllst *sllst_fold(Sllst *obj, int n_groups, int *group)
 {
     dbg(("+%s\n", __func__));
@@ -255,6 +293,11 @@ Sllst *sllst_fold(Sllst *obj, int n_groups, int *group)
     return retp;
 }
 
+/**
+ * @brief Print the link list
+ * @param[in] obj Pointer to the object
+ * @return None
+ */
 void sllst_print(Sllst *obj)
 {
     dbg(("%s\n", __func__));
@@ -286,6 +329,11 @@ typedef struct _mod_ops
     int operand[4];
 } Modops;
 
+/**
+ * @brief Parse the input characters for commands
+ * @param[in] str The input characters
+ * @param[out] operand Command type and operands
+ */
 void parse_cmd(char *str, Modops *m)
 {
     if (!str || !m)
