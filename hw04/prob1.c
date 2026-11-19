@@ -311,6 +311,16 @@ void build_codes(Node *curr, char path[], int depth, char codes[OCC_LEN][100])
  */
 void tree_destroy(Node *root)
 {
+    if (!root)
+        return;
+
+    if (root->left)
+        tree_destroy(root->left);
+
+    if (root->right)
+        tree_destroy(root->right);
+
+    free(root);
 }
 
 int main()
@@ -320,10 +330,10 @@ int main()
     char codes[OCC_LEN][100] = {{0}};
     char path[POOL_SZ] = {0};
 
-    fgets(instr, LEN - 1, stdin);
+    fgets(instr, LEN, stdin);
     int len = strlen(instr);
     if (len > 0 && instr[len - 1] == '\n')
-        instr[len - 1] = 0;
+        instr[len--] = 0;
     dbg(("%s\n", instr));
 
     /* count occurences of characters */
@@ -390,6 +400,12 @@ int main()
         }
     }
 
+    for (int i = 0; i < len && instr[i] != 0; ++i)
+    {
+        printf("%s", codes[instr[i] - 32]);
+    }
+
+    tree_destroy(root);
     pq_destroy(pq);
 
     return 0;
