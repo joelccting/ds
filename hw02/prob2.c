@@ -799,7 +799,7 @@ LL cc_sim(CopyCenter *cc)
                 event_set(&ne, EV_COMPLETE, e.printer_id, e.src_printer_id, e.job_id, tick + e.n_pages * p->speed, e.n_pages);
                 p->consecutive_printed_pages += e.n_pages;
             }
-            else
+            else // will overheat
             {
                 event_set(&ne, EV_OVERHEAT, e.printer_id, e.src_printer_id, e.job_id, tick + (LL)rempages * p->speed, e.n_pages - rempages);
                 p->consecutive_printed_pages += rempages;
@@ -854,6 +854,7 @@ LL cc_sim(CopyCenter *cc)
 
             event_set(&ne, EV_REST_END, e.printer_id, e.src_printer_id, e.job_id, p->rest_end_time, e.n_pages);
             pq_push(cc->pq, &ne);
+            dbg(("Overheat with %d pages\n", e.n_pages));
 
             if (e.n_pages > 0)
             {
@@ -862,10 +863,7 @@ LL cc_sim(CopyCenter *cc)
                 event_set(&ne, EV_REASSIGN, e.printer_id, p->id, e.job_id, tick, e.n_pages);
                 pq_push(cc->pq, &ne);
             }
-            // else
-            // {
-            //     p->n_remaining_pages -= job.n_pages;
-            // }
+
             break;
 
         case EV_REST_END:
