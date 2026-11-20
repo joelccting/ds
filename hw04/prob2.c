@@ -341,6 +341,8 @@ int parse(char *str, int *freq)
 
 void decode(Node *node, char *str, int *idx)
 {
+    if (!node)
+        return;
 
     if (!node->left && !node->right)
     {
@@ -362,11 +364,17 @@ void decode(Node *node, char *str, int *idx)
             return;
         }
     }
-    else if (str[*idx] == '1' && node->right)
+    else if (str[*idx] == '1')
     {
-
+        if (node->right)
+        {
+            *idx += 1;
+            decode(node->right, str, idx);
+        }
+    }
+    else // skip non-0/1 characters
+    {
         *idx += 1;
-        decode(node->right, str, idx);
     }
 }
 
@@ -416,7 +424,8 @@ int main()
             if (!root->left && !root->right)
                 while (idx < len)
                 {
-                    printf("%c", root->ch);
+                    if (buf[idx] == '0' || buf[idx] == '1')
+                        printf("%c", root->ch);
                     ++idx;
                 }
         }
