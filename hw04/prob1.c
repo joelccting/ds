@@ -333,7 +333,11 @@ int main()
     fgets(instr, LEN, stdin);
     int len = strlen(instr);
     if (len > 0 && instr[len - 1] == '\n')
-        instr[len--] = 0;
+    {
+        instr[len - 1] = 0;
+        --len;
+    }
+
     dbg(("%s\n", instr));
 
     /* count occurences of characters */
