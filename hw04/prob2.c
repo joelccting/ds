@@ -381,7 +381,7 @@ int main()
     {
         fgets(buf, LEN, stdin);
         len = strlen(buf);
-        if (len > 0 && buf[len - 1] == '\n')
+        while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
         {
             buf[len - 1] = 0;
             --len;
@@ -399,33 +399,40 @@ int main()
 
     fgets(buf, LEN, stdin);
     len = strlen(buf);
-    if (len > 0 && buf[len - 1] == '\n')
+    while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
     {
         buf[len - 1] = 0;
         --len;
     }
 
-    Node *root = tree_build(pq);
-    int idx = 0;
-    if (N == 1)
+    Node *root = NULL;
+    if (len)
     {
-        if (!root->left && !root->right)
+
+        root = tree_build(pq);
+        int idx = 0;
+        if (N == 1)
+        {
+            if (!root->left && !root->right)
+                while (idx < len)
+                {
+                    printf("%c", root->ch);
+                    ++idx;
+                }
+        }
+        else
+        {
             while (idx < len)
             {
-                printf("%c", root->ch);
-                ++idx;
+                decode(root, buf, &idx);
+                dbg(("idx=%d\n", idx));
             }
-    }
-    else
-    {
-        while (idx < len)
-        {
-            decode(root, buf, &idx);
-            dbg(("idx=%d\n", idx));
         }
     }
+    printf("\n");
 
-    tree_destroy(root);
+    if (root)
+        tree_destroy(root);
     pq_destroy(pq);
     return 0;
 }
