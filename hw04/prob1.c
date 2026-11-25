@@ -85,9 +85,9 @@ void pq_destroy(PriorityQueue *pq)
 }
 
 /**
- * @brief private function. Swap two events
- * @param[in] a The pointer to a event
- * @param[in] b The pointer to the other event
+ * @brief private function. Swap two nodes
+ * @param[in] a The pointer to a node
+ * @param[in] b The pointer to the other node
  * @return None
  */
 static void swap(Node **a, Node **b)
@@ -105,12 +105,12 @@ static void swap(Node **a, Node **b)
 }
 
 /**
- * @brief private function
- * @param[in] a An item
- * @param[in] b The other item
+ * @brief private function. Compare the priority
+ * @param[in] a A node
+ * @param[in] b The other node
  * @return 1 if a < b; 0 if a == b; -1 if otherwise
  */
-int is_higher_priority(Node *a, Node *b)
+static int is_higher_priority(Node *a, Node *b)
 {
     if (!a || !b)
     {
@@ -157,7 +157,7 @@ static void heapify_up(PriorityQueue *pq, int index)
  * @param[in] index Current position of the element
  * @return None
  */
-void heapify_down(PriorityQueue *pq, int index)
+static void heapify_down(PriorityQueue *pq, int index)
 {
     if (!pq)
     {
@@ -218,9 +218,9 @@ int pq_push(PriorityQueue *pq, Node *d)
 }
 
 /**
- * @brief Peep the top event
+ * @brief Peep the top node
  * @param[in] pq A pointer to the object
- * @param[out] d A pointer to an event
+ * @param[out] d A pointer to a node
  * @return 0 if success; otherwise if failure
  */
 int pq_top(PriorityQueue *pq, Node *d)
@@ -244,7 +244,7 @@ int pq_top(PriorityQueue *pq, Node *d)
 }
 
 /**
- * @brief Pop an event out of a priority queue
+ * @brief Pop a node out of a priority queue
  * @param[in] pq A pointer to the object
  * @return NULL if failure; otherwise if success;
  */
@@ -272,6 +272,14 @@ Node *pq_pop(PriorityQueue *pq)
     return retp;
 }
 
+/**
+ * @brief build codes for a tree
+ * @param[in] curr Current node
+ * @param[in] path Buffer to store 0/1 string
+ * @param[in] depth The depth-th character
+ * @param[in] codes Final storage of completed codes
+ * @return None
+ */
 void build_codes(Node *curr, char path[], int depth, char codes[OCC_LEN][100])
 {
     dbg(("depth=%d\n", depth));
@@ -308,6 +316,8 @@ void build_codes(Node *curr, char path[], int depth, char codes[OCC_LEN][100])
 
 /**
  * @brief Post-order traversal to release allocated memory
+ * @param[in] root Pointer to the root node
+ * @return None
  */
 void tree_destroy(Node *root)
 {
@@ -330,6 +340,7 @@ int main()
     char codes[OCC_LEN][100] = {{0}};
     char path[POOL_SZ] = {0};
 
+    /* get input string and pre-process */
     fgets(instr, LEN, stdin);
     int len = strlen(instr);
     if (len > 0 && instr[len - 1] == '\n')
@@ -355,6 +366,7 @@ int main()
     }
 #endif
 
+    /* push characters into a min heap */
     PriorityQueue *pq = pq_create(OCC_LEN);
     for (int i = 0; i < OCC_LEN; ++i)
     {
@@ -376,7 +388,7 @@ int main()
     }
 #endif
 
-    /* Build the tree */
+    /* Build a tree from the min heap */
     while (pq->size > 1)
     {
         Node *left = pq_pop(pq);
@@ -391,6 +403,7 @@ int main()
         pq_push(pq, parent);
     }
 
+    /* Encode the tree */
     Node *root = pq_pop(pq);
     build_codes(root, path, 0, codes);
     for (int i = 0; i < OCC_LEN; ++i)
@@ -404,11 +417,13 @@ int main()
         }
     }
 
+    /* Print the result */
     for (int i = 0; i < len && instr[i] != 0; ++i)
     {
         printf("%s", codes[instr[i] - 32]);
     }
 
+    /* Release allocated memory */
     tree_destroy(root);
     pq_destroy(pq);
 
