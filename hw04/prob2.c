@@ -85,9 +85,9 @@ void pq_destroy(PriorityQueue *pq)
 }
 
 /**
- * @brief private function. Swap two events
- * @param[in] a The pointer to a event
- * @param[in] b The pointer to the other event
+ * @brief private function. Swap two nodes
+ * @param[in] a The pointer to a node
+ * @param[in] b The pointer to the other node
  * @return None
  */
 static void swap(Node **a, Node **b)
@@ -105,12 +105,12 @@ static void swap(Node **a, Node **b)
 }
 
 /**
- * @brief private function
- * @param[in] a An item
- * @param[in] b The other item
+ * @brief private function. Compare the priority
+ * @param[in] a A node
+ * @param[in] b The other node
  * @return 1 if a < b; 0 if a == b; -1 if otherwise
  */
-int is_higher_priority(Node *a, Node *b)
+static int is_higher_priority(Node *a, Node *b)
 {
     if (!a || !b)
     {
@@ -131,7 +131,7 @@ int is_higher_priority(Node *a, Node *b)
 /**
  * @brief Private function. Moving an item up.
  * @param[in] pq A pointer to the object
- * @param[in] idx Current position of the element
+ * @param[in] index Current position of the element
  * @return None
  */
 static void heapify_up(PriorityQueue *pq, int idx)
@@ -154,10 +154,10 @@ static void heapify_up(PriorityQueue *pq, int idx)
 /**
  * @brief private function. Moving an item down.
  * @param[in] pq A pointer to the object
- * @param[in] idx Current position of the element
+ * @param[in] index Current position of the element
  * @return None
  */
-void heapify_down(PriorityQueue *pq, int idx)
+static void heapify_down(PriorityQueue *pq, int idx)
 {
     if (!pq)
     {
@@ -218,9 +218,9 @@ int pq_push(PriorityQueue *pq, Node *d)
 }
 
 /**
- * @brief Peep the top event
+ * @brief Peep the top node
  * @param[in] pq A pointer to the object
- * @param[out] d A pointer to an event
+ * @param[out] d A pointer to a node
  * @return 0 if success; otherwise if failure
  */
 int pq_top(PriorityQueue *pq, Node *d)
@@ -244,7 +244,7 @@ int pq_top(PriorityQueue *pq, Node *d)
 }
 
 /**
- * @brief Pop an event out of a priority queue
+ * @brief Pop a node out of a priority queue
  * @param[in] pq A pointer to the object
  * @return NULL if failure; otherwise if success;
  */
@@ -272,6 +272,11 @@ Node *pq_pop(PriorityQueue *pq)
     return retp;
 }
 
+/**
+ * @brief Build a tree from a min heap
+ * @param[in] pq A priority queue
+ * @return The root node of a tree
+ */
 Node *tree_build(PriorityQueue *pq)
 {
     Node *retp = NULL;
@@ -297,6 +302,11 @@ Node *tree_build(PriorityQueue *pq)
     return retp;
 }
 
+/**
+ * @brief Release allocated memory of a tree
+ * @param[in] root The root node of a tree
+ * @return None
+ */
 void tree_destroy(Node *root)
 {
     if (!root)
@@ -313,6 +323,9 @@ void tree_destroy(Node *root)
 
 /**
  * @brief Parse the input string
+ * @param[in] str Input buffer of characters
+ * @param[out] freq The frequency of a chacter indicated by the string
+ * @return The ASCII code of the character
  */
 int parse(char *str, int *freq)
 {
@@ -339,9 +352,16 @@ int parse(char *str, int *freq)
     return retval;
 }
 
+/**
+ * @brief Decode a tree
+ * @param[in] node The root node of a tree
+ * @param[in] str A code string
+ * @param[in] idx Index of current position in a string
+ * @return None
+ */
 void decode(Node *node, char *str, int *idx)
 {
-    if (!node)
+    if (!node || !str || !idx)
         return;
 
     if (!node->left && !node->right)
@@ -387,6 +407,7 @@ int main()
     PriorityQueue *pq = pq_create(OCC_LEN);
     for (int i = 0; i < N; ++i)
     {
+        /* Get input and push into a min heap */
         fgets(buf, LEN, stdin);
         len = strlen(buf);
         while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
@@ -405,6 +426,7 @@ int main()
         pq_push(pq, p);
     }
 
+    /* Get encoded string */
     fgets(buf, LEN, stdin);
     len = strlen(buf);
     while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
@@ -416,7 +438,6 @@ int main()
     Node *root = NULL;
     if (len)
     {
-
         root = tree_build(pq);
         int idx = 0;
         if (N == 1)
@@ -440,6 +461,7 @@ int main()
     }
     printf("\n");
 
+    /* release allocated memory */
     if (root)
         tree_destroy(root);
     pq_destroy(pq);
