@@ -60,6 +60,11 @@ PriorityQueue *pq_create(int capacity)
     return retp;
 }
 
+/**
+ * @brief Reset a priority queue
+ * @param[in] pq A priority queue
+ * @return None
+ */
 void pq_reset(PriorityQueue *pq)
 {
     pq->size = 0;
@@ -83,9 +88,9 @@ void pq_destroy(PriorityQueue *pq)
 }
 
 /**
- * @brief private function. Swap two events
- * @param[in] a The pointer to a event
- * @param[in] b The pointer to the other event
+ * @brief private function. Swap two nodes
+ * @param[in] a The pointer to a node
+ * @param[in] b The pointer to the other node
  * @return None
  */
 static void swap(Node **a, Node **b)
@@ -108,7 +113,7 @@ static void swap(Node **a, Node **b)
  * @param[in] b The other item
  * @return 1 if a < b; 0 if a == b; -1 if otherwise
  */
-int is_higher_priority(Node *a, Node *b)
+static int is_higher_priority(Node *a, Node *b)
 {
     if (!a || !b)
     {
@@ -269,6 +274,15 @@ Node *pq_pop(PriorityQueue *pq)
 
     return retp;
 }
+
+/**
+ * @brief build codes for a tree
+ * @param[in] curr Current node
+ * @param[in] path Buffer to store 0/1 string
+ * @param[in] depth The depth-th character
+ * @param[in] codes Final storage of completed codes
+ * @return None
+ */
 void build_codes(Node *curr, char path[], int depth, char codes[OCC_LEN][CODE_LEN])
 {
     dbg(("depth=%d\n", depth));
@@ -303,6 +317,11 @@ void build_codes(Node *curr, char path[], int depth, char codes[OCC_LEN][CODE_LE
     }
 }
 
+/**
+ * @brief Build a tree from a min heap
+ * @param[in] pq A priority queue
+ * @return The root node of a tree
+ */
 Node *tree_build(PriorityQueue *pq, Node *pool, int pool_idx)
 {
     Node *root = NULL;
@@ -327,7 +346,9 @@ Node *tree_build(PriorityQueue *pq, Node *pool, int pool_idx)
 }
 
 /**
- * @brief Post-order traversal to release allocated memory
+ * @brief Release allocated memory of a tree
+ * @param[in] root The root node of a tree
+ * @return None
  */
 void tree_destroy(Node *root)
 {
@@ -345,6 +366,8 @@ void tree_destroy(Node *root)
 
 /**
  * @brief Get a string from the input and remove the ending \r or \n
+ * @param[in] buf A buffer
+ * @return Length of the string
  */
 int get_input(char *buf)
 {
@@ -361,6 +384,9 @@ int get_input(char *buf)
 
 /**
  * @brief Parse the input string
+ * @param[in] str Input buffer of characters
+ * @param[out] freq The frequency of a chacter indicated by the string
+ * @return The ASCII code of the character
  */
 int parse(char *str, int *freq)
 {
@@ -387,6 +413,12 @@ int parse(char *str, int *freq)
     return retval;
 }
 
+/**
+ * @brief Parse the input string
+ * @param[in] str Input buffer of characters
+ * @param[out] code string
+ * @return The ASCII code of the character if success; 0 if failure
+ */
 int parse2(char *str, char code[][CODE_LEN])
 {
     // dbg(("%s\n", str));
@@ -456,6 +488,7 @@ int main()
             ch = parse2(buf, to_validate);
         }
 
+        /* Validation */
         is_same = 1;
         for (int j = 0; j < OCC_LEN; ++j)
         {
@@ -474,6 +507,7 @@ int main()
         pq_reset(pq);
     }
 
+    /* Free allocated memory */
     free(pool);
     pq_destroy(pq);
 
